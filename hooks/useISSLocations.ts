@@ -84,47 +84,49 @@ export function useISSLocations({
         }
         
         console.log(`📊 Found ${total} positions on-chain`)
-        console.log(`⏳ Fetching all ${total} positions...`)
+        console.log(`⏳ Fetching all positions in one request...`)
         
-        // Fetch all positions (could optimize with range queries for large datasets)
+        // Fetch all positions at once using range query
+        const data = await sdk.streams.getBetweenRange(
+          ISS_SCHEMA_ID,
+          PUBLISHER_ADDRESS,
+          0n,
+          total - 1n
+        )
+        
         const locations: ISSLocation[] = []
         
-        for (let i = 0n; i < total; i++) {
-          if (i % 10n === 0n) {
-            console.log(`   Progress: ${i}/${total}`)
-          }
-          const data = await sdk.streams.getAtIndex(
-            ISS_SCHEMA_ID,
-            PUBLISHER_ADDRESS,
-            i
-          )
-          
-          if (data && !(data instanceof Error) && data.length > 0) {
-            try {
-              let location: ISSLocation
-              
-              // SDK might return raw bytes or decoded object
-              if (typeof data[0] === 'string') {
-                location = decodeISSLocation(data[0] as `0x${string}`)
-              } else {
-                // Already decoded by SDK (includes schema inheritance)
-                const decoded = data[0] as Array<{ value: { value: unknown } }>
-                location = {
-                  timestamp: Number(decoded[0]?.value?.value || 0),
-                  latitude: Number(decoded[1]?.value?.value || 0) / 1_000_000,
-                  longitude: Number(decoded[2]?.value?.value || 0) / 1_000_000,
-                  altitude: Number(decoded[3]?.value?.value || 0),
-                  accuracy: Number(decoded[4]?.value?.value || 0),
-                  entityId: String(decoded[5]?.value?.value || ''),
-                  nonce: BigInt(decoded[6]?.value?.value || 0),
-                  velocity: Number(decoded[7]?.value?.value || 0),
-                  visibility: Number(decoded[8]?.value?.value || 0)
+        if (data && !(data instanceof Error) && Array.isArray(data)) {
+          for (let i = 0; i < data.length; i++) {
+            const positionData = data[i]
+            
+            if (positionData && Array.isArray(positionData) && positionData.length > 0) {
+              try {
+                let location: ISSLocation
+                
+                // SDK might return raw bytes or decoded object
+                if (typeof positionData[0] === 'string') {
+                  location = decodeISSLocation(positionData[0] as `0x${string}`)
+                } else {
+                  // Already decoded by SDK (includes schema inheritance)
+                  const decoded = positionData[0] as Array<{ value: { value: unknown } }>
+                  location = {
+                    timestamp: Number(decoded[0]?.value?.value || 0),
+                    latitude: Number(decoded[1]?.value?.value || 0) / 1_000_000,
+                    longitude: Number(decoded[2]?.value?.value || 0) / 1_000_000,
+                    altitude: Number(decoded[3]?.value?.value || 0),
+                    accuracy: Number(decoded[4]?.value?.value || 0),
+                    entityId: String(decoded[5]?.value?.value || ''),
+                    nonce: BigInt(decoded[6]?.value?.value || 0),
+                    velocity: Number(decoded[7]?.value?.value || 0),
+                    visibility: Number(decoded[8]?.value?.value || 0)
+                  }
                 }
+                
+                locations.push(location)
+              } catch (error) {
+                console.error(`❌ Failed to decode position ${i}:`, error)
               }
-              
-              locations.push(location)
-            } catch (error) {
-              console.error(`❌ Failed to decode position ${i}:`, error)
             }
           }
         }

@@ -31,7 +31,7 @@ if (typeof window !== 'undefined') {
 
 interface ISSMapProps {
   locations: ISSLocation[]
-  currentTime: number
+  currentLocation: ISSLocation | null
   showTrail?: boolean
 }
 
@@ -39,19 +39,10 @@ interface ISSMapProps {
 /**
  * Main map component showing ISS position and orbit trail
  */
-export function ISSMap({ locations, currentTime, showTrail = true }: ISSMapProps) {
-  // Get current ISS position based on timeline (closest to currentTime)
-  const currentLocation = locations.length > 0
-    ? locations.reduce((prev, curr) => {
-        return Math.abs(curr.timestamp - currentTime) < Math.abs(prev.timestamp - currentTime)
-          ? curr
-          : prev
-      })
-    : null
-
+export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapProps) {
   // All locations passed in are already filtered by parent (within time window)
   // Calculate opacity based on age (newer = more opaque)
-  const now = currentTime
+  const now = Date.now()
   const oldestTime = locations.length > 0 ? Math.min(...locations.map(l => l.timestamp)) : now
   const timeRange = now - oldestTime
   

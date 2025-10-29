@@ -12,7 +12,7 @@
  */
 'use client'
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { ISSInfo } from '@/components/ISSInfo'
 import { useISSLocations } from '@/hooks/useISSLocations'
@@ -30,16 +30,6 @@ const ISSMap = dynamic(
 
 export default function Home() {
   const [locations, setLocations] = useState<ISSLocation[]>([])
-  const [currentTime, setCurrentTime] = useState(() => Date.now())
-  const timeWindow = 24 * 60 * 60 * 1000 // 24 hours
-
-  // Keep currentTime updated for live tracking
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now())
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [])
 
   // Callbacks for ISS location hook
   const handleNewLocation = useCallback((location: ISSLocation) => {
@@ -57,26 +47,30 @@ export default function Home() {
     onLocationsUpdate: handleLocationsUpdate
   })
 
-  // Get current location based on timeline position
+  // Get current location - always the most recent one for live tracking
   const currentLocation = useMemo(() => {
     if (locations.length === 0) return null
     
-    // Find location closest to currentTime
-    const closest = locations.reduce((prev, curr) => {
-      return Math.abs(curr.timestamp - currentTime) < Math.abs(prev.timestamp - currentTime)
-        ? curr
-        : prev
+    // For live tracking, use the newest location (highest timestamp)
+    const newest = locations.reduce((prev, curr) => {
+      return curr.timestamp > prev.timestamp ? curr : prev
     })
     
-    return closest
-  }, [locations, currentTime])
+    console.log(`📍 Current location: ${newest.latitude.toFixed(4)}, ${newest.longitude.toFixed(4)} at ${new Date(newest.timestamp).toISOString()}`)
+    return newest
+  }, [locations])
 
-  // Filter locations for current time window
-  const filteredLocations = useMemo(() => {
-    const filtered = locations.filter(l => currentTime - l.timestamp <= timeWindow)
-    console.log(`🗺️  Map: ${filtered.length} of ${locations.length} positions visible (window: ${timeWindow / 1000 / 60 / 60}h)`)
-    return filtered
-  }, [locations, currentTime, timeWindow])
+  // Log location info for debugging
+  useMemo(() => {
+    if (locations.length > 0) {
+      const oldest = Math.min(...locations.map(l => l.timestamp))
+      const newest = Math.max(...locations.map(l => l.timestamp))
+      console.log(`🗺️  Locations data:`)
+      console.log(`   Total: ${locations.length}`)
+      console.log(`   Oldest: ${new Date(oldest).toISOString()}`)
+      console.log(`   Newest: ${new Date(newest).toISOString()}`)
+    }
+  }, [locations])
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 text-white">
@@ -127,8 +121,8 @@ export default function Home() {
           {/* Map */}
           <div className="h-[700px] rounded-lg overflow-hidden border border-gray-700 shadow-2xl">
             <ISSMap
-              locations={filteredLocations}
-              currentTime={currentTime}
+              locations={locations}
+              currentLocation={currentLocation}
               showTrail={true}
             />
           </div>
