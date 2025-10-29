@@ -40,13 +40,11 @@ interface ISSMapProps {
  * Main map component showing ISS position and orbit trail
  */
 export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapProps) {
-  // All locations passed in (should be last 100 positions)
+  // All locations passed in are already filtered to be valid (non-zero coordinates)
   // Calculate opacity based on position in array (older = less opaque)
-  const validLocations = locations.filter(l => l.latitude !== 0 && l.longitude !== 0)
-  
-  const trailDots = showTrail ? validLocations.map((l, index) => {
+  const trailDots = showTrail ? locations.map((l, index) => {
       // Opacity fades from 0.2 (oldest/first) to 1.0 (newest/last)
-      const opacity = 0.2 + (index / (validLocations.length - 1 || 1)) * 0.8
+      const opacity = 0.2 + (index / (locations.length - 1 || 1)) * 0.8
       return {
         lat: l.latitude,
         lon: l.longitude,

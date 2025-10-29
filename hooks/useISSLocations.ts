@@ -14,7 +14,7 @@
 
 import { useEffect, useRef } from 'react'
 import { encodeFunctionData, decodeFunctionResult } from 'viem'
-import { ISS_SCHEMA_ID, PUBLISHER_ADDRESS } from '@/lib/constants'
+import { ISS_SCHEMA_ID, GPS_SCHEMA_ID, ISS_SCHEMA, PUBLISHER_ADDRESS } from '@/lib/constants'
 import { decodeISSLocation } from '@/lib/iss-encoding'
 import { getClientSDK, getClientFetchSDK } from '@/lib/client-sdk'
 import type { ISSLocation } from '@/types/iss'
@@ -121,40 +121,24 @@ export function useISSLocations({
           }
           
           for (let i = 0; i < data.length; i++) {
-            const positionData = data[i]
-            
-            if (positionData && Array.isArray(positionData) && positionData.length > 0) {
-              try {
-                // getBetweenRange returns array of objects with {name, type, value} structure
-                // Create a map for easy field access
-                const fieldMap: Record<string, any> = {}
-                for (const field of positionData) {
-                  if (field.name && field.value) {
-                    fieldMap[field.name] = field.value.value
-                  }
-                }
-                
-                const location: ISSLocation = {
-                  timestamp: Number(fieldMap.timestamp || 0),
-                  latitude: Number(fieldMap.latitude || 0) / 1_000_000,
-                  longitude: Number(fieldMap.longitude || 0) / 1_000_000,
-                  altitude: Number(fieldMap.altitude || 0),
-                  accuracy: Number(fieldMap.accuracy || 0),
-                  entityId: String(fieldMap.entityId || ''),
-                  nonce: BigInt(fieldMap.nonce || 0),
-                  velocity: Number(fieldMap.velocity || 0),
-                  visibility: Number(fieldMap.visibility || 0)
-                }
-                
+            try {
+              // Use SDK's deserialiseRawData to convert to bytes, then decode
+              const rawBytes = await sdk.streams.deserialiseRawData(
+                data.slice(i, i + 1) as any,
+                GPS_SCHEMA_ID,
+                { schema: ISS_SCHEMA, schemaId: ISS_SCHEMA_ID }
+              )
+              
+              if (rawBytes && Array.isArray(rawBytes) && rawBytes.length > 0 && typeof rawBytes[0] === 'string') {
+                const location = decodeISSLocation(rawBytes[0] as `0x${string}`)
                 locations.push(location)
+                
                 if (i < 3 || i >= data.length - 3) {
                   console.log(`   Position ${i}: nonce ${location.nonce}, lat ${location.latitude.toFixed(2)}, lon ${location.longitude.toFixed(2)}`)
                 }
-              } catch (error) {
-                console.error(`❌ Failed to decode position ${i}:`, error)
               }
-            } else {
-              console.warn(`⚠️  Position ${i} is invalid:`, typeof positionData, Array.isArray(positionData) ? `length ${positionData.length}` : '')
+            } catch (error) {
+              console.error(`❌ Failed to decode position ${i}:`, error)
             }
           }
         } else {
