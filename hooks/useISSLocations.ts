@@ -88,85 +88,33 @@ export function useISSLocations({
         // Only fetch the last 100 positions for better performance
         const fetchCount = total > 100n ? 100n : total
         const startIndex = total > 100n ? total - 100n : 0n
-        const endIndex = total - 1n
         
-        console.log(`⏳ Requesting range: ${startIndex} to ${endIndex} (${fetchCount} positions)`)
-        console.log(`   Total on-chain: ${total}`)
-        console.log(`   Expected nonce range: ${startIndex} to ${endIndex}`)
-        
-        // Fetch positions using range query
-        const data = await sdk.streams.getBetweenRange(
-          ISS_SCHEMA_ID,
-          PUBLISHER_ADDRESS,
-          startIndex,
-          endIndex
-        )
-        
-        console.log(`📥 getBetweenRange completed, checking response...`)
+        console.log(`⏳ Fetching last ${fetchCount} positions (indices ${startIndex} to ${total - 1n})`)
         
         const locations: ISSLocation[] = []
         
-        console.log('🔍 getBetweenRange returned:', typeof data, Array.isArray(data) ? `array of ${data.length}` : data instanceof Error ? 'Error' : 'other')
-        
-        if (data && !(data instanceof Error) && Array.isArray(data)) {
-          console.log(`📦 Processing ${data.length} items from range query...`)
-          
-          // Log first item structure to understand format
-          if (data.length > 0) {
-            console.log('🔬 First item structure:', typeof data[0], Array.isArray(data[0]) ? `array[${data[0].length}]` : '')
-            console.log('🔬 First item:', data[0])
-            if (Array.isArray(data[0]) && data[0].length > 0) {
-              console.log('🔬 First item[0]:', typeof data[0][0], data[0][0])
-            }
-          }
-          
-          for (let i = 0; i < data.length; i++) {
-            const positionData = data[i]
+        // NOTE: getBetweenRange has a bug with schema inheritance (mixes indices with field values)
+        // Using getAtIndex instead - less efficient but actually works
+        for (let i = startIndex; i < total; i++) {
+          try {
+            const data = await sdk.streams.getAtIndex(
+              ISS_SCHEMA_ID,
+              PUBLISHER_ADDRESS,
+              i
+            )
             
-            if (positionData && Array.isArray(positionData) && positionData.length > 0) {
-              try {
-                // getBetweenRange returns array of {name, type, value: {value}} objects
-                // Map by field name to get values
-                const fields: Record<string, any> = {}
-                for (const field of positionData) {
-                  if (field && field.name && field.value && typeof field.value.value !== 'undefined') {
-                    fields[field.name] = field.value.value
-                  }
-                }
-                
-                if (i === 0) {
-                  console.log('🔬 Mapped fields:', Object.keys(fields))
-                  console.log('🔬 Sample values:', {
-                    timestamp: fields.timestamp,
-                    latitude: fields.latitude,
-                    nonce: fields.nonce
-                  })
-                }
-                
-                // Create location object with proper field mapping
-                const location: ISSLocation = {
-                  timestamp: Number(fields.timestamp || 0),
-                  latitude: Number(fields.latitude || 0) / 1_000_000,
-                  longitude: Number(fields.longitude || 0) / 1_000_000,
-                  altitude: Number(fields.altitude || 0),
-                  accuracy: Number(fields.accuracy || 0),
-                  entityId: String(fields.entityId || ''),
-                  nonce: BigInt(fields.nonce || 0),
-                  velocity: Number(fields.velocity || 0),
-                  visibility: Number(fields.visibility || 0)
-                }
-                
-                locations.push(location)
-                if (i < 3 || i >= data.length - 3) {
-                  console.log(`   Position ${i}: nonce ${location.nonce}, lat ${location.latitude.toFixed(2)}, lon ${location.longitude.toFixed(2)}`)
-                }
-              } catch (error) {
-                console.error(`❌ Failed to decode position ${i}:`, error)
+            // getAtIndex returns raw bytes when no schema lookup provided
+            if (data && Array.isArray(data) && data.length > 0 && typeof data[0] === 'string') {
+              const location = decodeISSLocation(data[0] as `0x${string}`)
+              locations.push(location)
+              
+              if (locations.length <= 3 || locations.length === Number(fetchCount)) {
+                console.log(`   Position ${i}: nonce ${location.nonce}, lat ${location.latitude.toFixed(2)}, lon ${location.longitude.toFixed(2)}`)
               }
             }
+          } catch (error) {
+            console.error(`❌ Failed to fetch position ${i}:`, error)
           }
-        } else {
-          console.error('❌ getBetweenRange returned invalid data')
         }
         
         // Filter out invalid positions (0,0 coordinates or epoch 0)
