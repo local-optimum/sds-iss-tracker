@@ -1,0 +1,95 @@
+---
+alwaysApply: true
+---
+
+# Somnia Data vs Event Streams
+
+### tldr;
+
+* Data Streams: Raw bytes calldata written to chain with contextual information on how to parse the data using a public or private `data schema`
+* Event Streams: [EVM logs](https://docs.chainstack.com/docs/ethereum-logs-tutorial-series-logs-and-filters) emitted by the Somnia Streams protocol. Protocol users register and `event schema` that can be referenced they want to emit an event that others can `subscribe` to with Somnia streams reactivity
+
+Both data and event streams can be done without knowing Solidity and without deploying any smart contracts
+
+### Typescript SDK interface
+
+```typescript
+/**
+ * @param somniaStreamsEventId The identifier of a registered event schema within Somnia streams protocol or null if using a custom event source
+ * @param ethCalls Fixed set of ETH calls that must be executed before onData callback is triggered. Multicall3 is recommended. Can be an empty array
+ * @param context Event sourced selectors to be added to the data field of ETH calls, possible values: topic0, topic1, topic2, topic3, topic4, data and address
+ * @param onData Callback for a successful reactivity notification
+ * @param onError Callback for a failed attempt 
+ * @param eventContractSource Alternative contract event source (any on somnia) that will be emitting the logs specified by topicOverrides
+ * @param topicOverrides Optional when using Somnia streams as an event source but mandatory when using a different event source
+ * @param onlyPushChanges Whether the data should be pushed to the subscriber only if eth_call results are different from the previous
+ */
+export type SubscriptionInitParams = {
+    somniaStreamsEventId?: string
+    ethCalls: EthCall[]
+    context?: string
+    onData: (data: any) => void
+    onError?: (error: Error) => void
+    eventContractSource?: Address
+    topicOverrides?: Hex[]
+    onlyPushChanges: boolean
+}
+
+export interface StreamsInterface {
+    // Write
+    set(d: DataStream[]): Promise<Hex | null>;
+    emitEvents(e: EventStream[]): Promise<Hex | Error | null>;
+    setAndEmitEvents(d: DataStream[], e: EventStream[]): Promise<Hex | Error | null>;
+
+    // Manage
+    registerDataSchemas(registrations: DataSchemaRegistration[]): Promise<Hex | Error | null>;
+    registerEventSchemas(ids: string[], schemas: EventSchema[]): Promise<Hex | Error | null>;
+    manageEventEmittersForRegisteredStreamsEvent(
+        streamsEventId: string,
+        emitter: Address,
+        isEmitter: boolean
+    ): Promise<Hex | Error | null>;
+
+    // Read
+    getByKey(schemaId: SchemaID, publisher: Address, key: Hex): Promise<Hex[] | SchemaDecodedItem[][] | null>;
+    getAtIndex(schemaId: SchemaID, publisher: Address, idx: bigint): Promise<Hex[] | SchemaDecodedItem[][] | null>;
+    getBetweenRange(
+        schemaId: SchemaID,
+        publisher: Address,
+        startIndex: bigint,
+        endIndex: bigint
+    ): Promise<Hex[] | SchemaDecodedItem[][] | Error | null>;
+    getAllPublisherDataForSchema(
+        schemaReference: SchemaReference,
+        publisher: Address
+    ): Promise<Hex[] | SchemaDecodedItem[][] | null>;
+    getLastPublishedDataForSchema(
+        schemaId: SchemaID,
+        publisher: Address
+    ): Promise<Hex[] | SchemaDecodedItem[][] | null>;
+    totalPublisherDataForSchema(schemaId: SchemaID, publisher: Address): Promise<bigint | null>;
+    isDataSchemaRegistered(schemaId: SchemaID): Promise<boolean | null>;
+    computeSchemaId(schema: string): Promise<Hex | null>;
+    parentSchemaId(schemaId: SchemaID): Promise<Hex | null>;
+    schemaIdToId(schemaId: SchemaID): Promise<string | null>;
+    idToSchemaId(id: string): Promise<Hex | null>;
+    getAllSchemas(): Promise<string[] | null>;
+    getEventSchemasById(ids: string[]): Promise<EventSchema[] | null>;
+
+    // Helper
+    deserialiseRawData(
+        rawData: Hex[],
+        parentSchemaId: Hex,
+        schemaLookup: {
+            schema: string;
+            schemaId: Hex;
+        } | null
+    ): Promise<Hex[] | SchemaDecodedItem[][] | null>;
+
+    // Subscribe
+    subscribe(initParams: SubscriptionInitParams): Promise<{ subscriptionId: string, unsubscribe: () => void } | undefined>;
+
+    // Protocol
+    getSomniaDataStreamsProtocolInfo(): Promise<GetSomniaDataStreamsProtocolInfoResponse | Error | null>;
+}
+```
