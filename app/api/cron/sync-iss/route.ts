@@ -13,13 +13,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { toHex } from 'viem'
 import { getSDK } from '@/lib/sdk'
-import { ISS_SCHEMA_ID, OPEN_NOTIFY_URL } from '@/lib/constants'
+import { ISS_SCHEMA_ID, OPEN_NOTIFY_URL, PUBLISHER_ADDRESS } from '@/lib/constants'
 import { encodeISSLocation } from '@/lib/iss-encoding'
 import type { OpenNotifyResponse } from '@/types/iss'
-
-// Track nonce (position counter) across cron invocations
-// In production, use Vercel KV or another persistent storage
-let currentNonce = BigInt(0)
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 10 // Max 10 seconds for serverless function
@@ -44,9 +40,21 @@ export async function GET(request: NextRequest) {
 
   console.log('🛰️  ISS Oracle: Syncing position...')
   console.log('   Time:', new Date().toISOString())
-  console.log('   Nonce:', currentNonce.toString())
 
   try {
+    // ===== Step 0: Calculate Next Nonce from On-Chain Data =====
+    console.log('🔢 Calculating next nonce from blockchain...')
+    const sdk = getSDK()
+    
+    const totalPublished = await sdk.streams.totalPublisherDataForSchema(
+      ISS_SCHEMA_ID,
+      PUBLISHER_ADDRESS
+    )
+    
+    const currentNonce = totalPublished || BigInt(0)
+    console.log(`   Total published: ${totalPublished}`)
+    console.log(`   Next nonce: ${currentNonce}`)
+    console.log('')
     // ===== Step 1: Fetch ISS Position from Open Notify API =====
     console.log('📡 Fetching from Open Notify API...')
     
@@ -83,8 +91,6 @@ export async function GET(request: NextRequest) {
     // ===== Step 3: Publish to Somnia Blockchain =====
     console.log('📤 Publishing to Somnia blockchain...')
     console.log('   Using setAndEmitEvents for atomic write + notification')
-    
-    const sdk = getSDK()
 
     const txHash = await sdk.streams.setAndEmitEvents(
       // Data Stream: Store ISS position on-chain
@@ -110,10 +116,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('✅ Published! TX:', txHash)
-
-    // ===== Step 4: Increment Nonce =====
-    currentNonce++
-    console.log(`📈 Nonce incremented to: ${currentNonce}`)
+    console.log(`📈 Nonce used: ${currentNonce}`)
 
     const duration = Date.now() - startTime
     console.log(`⏱️  Sync completed in ${duration}ms`)
@@ -122,7 +125,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       txHash,
-      nonce: currentNonce.toString(),
+      nonce: (currentNonce + BigInt(1)).toString(), // Next nonce will be current + 1
       position: {
         lat: issData.iss_position.latitude,
         lon: issData.iss_position.longitude,
@@ -142,7 +145,6 @@ export async function GET(request: NextRequest) {
       {
         error: 'Sync failed',
         message: err.message,
-        nonce: currentNonce.toString(),
         duration
       },
       { status: 500 }
