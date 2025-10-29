@@ -12,7 +12,7 @@ import { config } from 'dotenv'
 import { resolve } from 'path'
 import { privateKeyToAccount } from 'viem/accounts'
 import { GPS_SCHEMA, ISS_SCHEMA } from '../lib/constants'
-import { getSDK } from '../lib/sdk'
+import { getSDK, getPublicClient } from '../lib/sdk'
 
 // Load environment variables
 config({ path: resolve(process.cwd(), '.env.local') })
@@ -50,6 +50,14 @@ async function main() {
     ])
     console.log('✅ GPS schema registered!')
     console.log('   Transaction:', tx1)
+    
+    // Wait for transaction confirmation before proceeding
+    if (tx1) {
+      console.log('⏳ Waiting for transaction confirmation...')
+      const publicClient = getPublicClient()
+      await publicClient.waitForTransactionReceipt({ hash: tx1 })
+      console.log('✅ Transaction confirmed on blockchain!')
+    }
   } catch (error) {
     const err = error as Error
     if (err.message.includes('already registered') || err.message.includes('AlreadyExists')) {
@@ -83,6 +91,14 @@ async function main() {
     ])
     console.log('✅ ISS schema registered with GPS as parent!')
     console.log('   Transaction:', tx2)
+    
+    // Wait for transaction confirmation
+    if (tx2) {
+      console.log('⏳ Waiting for transaction confirmation...')
+      const publicClient = getPublicClient()
+      await publicClient.waitForTransactionReceipt({ hash: tx2 })
+      console.log('✅ Transaction confirmed on blockchain!')
+    }
   } catch (error) {
     const err = error as Error
     if (err.message.includes('already registered') || err.message.includes('AlreadyExists')) {
