@@ -60,7 +60,13 @@ export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapP
     }))
     : []
   
-  console.log(`🗺️  ISSMap render: ${locations.length} positions, trail: ${trailDots.length} dots, current:`, currentLocation ? `${currentLocation.latitude.toFixed(2)}, ${currentLocation.longitude.toFixed(2)}` : 'none')
+  console.log(`🗺️  ISSMap render:`)
+  console.log(`   Received ${locations.length} locations`)
+  console.log(`   Rendering ${trailDots.length} trail dots`)
+  console.log(`   Current location:`, currentLocation ? `${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)} (nonce ${currentLocation.nonce})` : 'none')
+  if (locations.length > 0) {
+    console.log(`   Location nonce range: ${Math.min(...locations.map(l => l.nonce))} - ${Math.max(...locations.map(l => l.nonce))}`)
+  }
 
   return (
     <MapContainer
@@ -99,7 +105,24 @@ export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapP
       {/* Current ISS position marker - glowing pulsing dot */}
       {currentLocation && (
         <>
+          {/* Outer glow ring (render first so it's behind) */}
           <CircleMarker
+            key={`outer-${currentLocation.nonce}`}
+            center={[currentLocation.latitude, currentLocation.longitude]}
+            radius={16}
+            pathOptions={{
+              fillColor: '#a78bfa',
+              fillOpacity: 0.15,
+              color: '#8b5cf6',
+              weight: 1,
+              opacity: 0.4,
+              className: 'iss-outer-glow'
+            }}
+          />
+          
+          {/* Main ISS marker */}
+          <CircleMarker
+            key={`iss-${currentLocation.nonce}`}
             center={[currentLocation.latitude, currentLocation.longitude]}
             radius={8}
             pathOptions={{
@@ -140,20 +163,6 @@ export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapP
               </div>
             </Popup>
           </CircleMarker>
-          
-          {/* Outer glow ring */}
-          <CircleMarker
-            center={[currentLocation.latitude, currentLocation.longitude]}
-            radius={16}
-            pathOptions={{
-              fillColor: '#a78bfa',
-              fillOpacity: 0.15,
-              color: '#8b5cf6',
-              weight: 1,
-              opacity: 0.4,
-              className: 'iss-outer-glow'
-            }}
-          />
         </>
       )}
 

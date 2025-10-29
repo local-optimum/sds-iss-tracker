@@ -84,14 +84,20 @@ export function useISSLocations({
         }
         
         console.log(`📊 Found ${total} positions on-chain`)
-        console.log(`⏳ Fetching all positions in one request...`)
         
-        // Fetch all positions at once using range query
+        // Only fetch the last 100 positions for better performance
+        const fetchCount = total > 100n ? 100n : total
+        const startIndex = total > 100n ? total - 100n : 0n
+        const endIndex = total - 1n
+        
+        console.log(`⏳ Fetching last ${fetchCount} positions (${startIndex} to ${endIndex})...`)
+        
+        // Fetch positions using range query
         const data = await sdk.streams.getBetweenRange(
           ISS_SCHEMA_ID,
           PUBLISHER_ADDRESS,
-          0n,
-          total - 1n
+          startIndex,
+          endIndex
         )
         
         const locations: ISSLocation[] = []
@@ -141,6 +147,8 @@ export function useISSLocations({
           console.log(`   Oldest: ${oldest}`)
           console.log(`   Newest: ${newest}`)
           console.log(`   Nonce range: ${locations[0].nonce} - ${locations[locations.length - 1].nonce}`)
+          console.log(`   Sample first position:`, locations[0])
+          console.log(`   Sample last position:`, locations[locations.length - 1])
         }
         return locations
       } catch (error) {
