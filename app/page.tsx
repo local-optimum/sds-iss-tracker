@@ -37,14 +37,22 @@ export default function Home() {
   }, [])
 
   const handleLocationsUpdate = useCallback((newLocations: ISSLocation[]) => {
-    console.log('📊 Parent: ISS locations updated:', newLocations.length, 'positions')
+    console.log('📊 Parent: handleLocationsUpdate called')
+    console.log(`   Received: ${newLocations.length} positions`)
+    
     if (newLocations.length > 0) {
       const nonces = newLocations.map(l => l.nonce)
       const minNonce = nonces.reduce((min, n) => n < min ? n : min, nonces[0])
       const maxNonce = nonces.reduce((max, n) => n > max ? n : max, nonces[0])
-      console.log(`   Parent: Nonce range ${minNonce} - ${maxNonce}`)
+      console.log(`   Nonce range: ${minNonce} - ${maxNonce}`)
+      
+      const validCount = newLocations.filter(l => l.latitude !== 0 && l.longitude !== 0).length
+      console.log(`   Valid positions: ${validCount} of ${newLocations.length}`)
     }
+    
+    console.log('   Calling setLocations...')
     setLocations(newLocations)
+    console.log('   setLocations completed')
   }, [])
 
   // Subscribe to ISS locations (fetch + real-time)
@@ -68,13 +76,24 @@ export default function Home() {
 
   // Log location info for debugging
   useMemo(() => {
+    console.log(`📦 Parent locations state updated:`)
+    console.log(`   State now contains: ${locations.length} locations`)
+    
     if (locations.length > 0) {
       const oldest = Math.min(...locations.map(l => l.timestamp))
       const newest = Math.max(...locations.map(l => l.timestamp))
-      console.log(`🗺️  Locations data:`)
+      const nonces = locations.map(l => l.nonce)
+      const minNonce = nonces.reduce((min, n) => n < min ? n : min, nonces[0])
+      const maxNonce = nonces.reduce((max, n) => n > max ? n : max, nonces[0])
+      const validCount = locations.filter(l => l.latitude !== 0 && l.longitude !== 0).length
+      
       console.log(`   Total: ${locations.length}`)
+      console.log(`   Valid (non-zero): ${validCount}`)
+      console.log(`   Nonce range: ${minNonce} - ${maxNonce}`)
       console.log(`   Oldest: ${new Date(oldest).toISOString()}`)
       console.log(`   Newest: ${new Date(newest).toISOString()}`)
+    } else {
+      console.warn('   State is empty!')
     }
   }, [locations])
 

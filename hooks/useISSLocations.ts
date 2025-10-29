@@ -162,8 +162,15 @@ export function useISSLocations({
           console.log(`   Oldest: ${oldest}`)
           console.log(`   Newest: ${newest}`)
           console.log(`   Nonce range: ${locations[0].nonce} - ${locations[locations.length - 1].nonce}`)
+          
+          // Check for valid positions (non-zero lat/lon)
+          const validCount = locations.filter(l => l.latitude !== 0 && l.longitude !== 0).length
+          console.log(`   Valid positions (non-zero lat/lon): ${validCount} of ${locations.length}`)
+          
           console.log(`   Sample first position:`, locations[0])
           console.log(`   Sample last position:`, locations[locations.length - 1])
+        } else {
+          console.warn('⚠️  No locations loaded from blockchain!')
         }
         return locations
       } catch (error) {
@@ -327,15 +334,23 @@ export function useISSLocations({
     
     // Defer to avoid blocking render
     setTimeout(() => {
+      console.log('⏰ Timeout elapsed, starting initial fetch...')
       fetchInitialLocations()
         .then(locations => {
           currentLocations = locations
           console.log(`📋 Initialized with ${locations.length} historical positions`)
-          console.log('🔌 Now setting up WebSocket subscription for real-time updates...')
+          
+          if (locations.length > 0) {
+            console.log(`🔔 Calling parent onLocationsUpdate with ${locations.length} locations`)
+          } else {
+            console.warn('⚠️  No historical locations to pass to parent')
+          }
           
           // Update parent with initial data
           onLocationsUpdateRef.current(locations)
+          console.log('✅ Parent updated with initial data')
           
+          console.log('🔌 Now setting up WebSocket subscription for real-time updates...')
           // Start real-time subscription
           setupSubscription()
         })
