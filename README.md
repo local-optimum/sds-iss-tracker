@@ -12,7 +12,7 @@ This project demonstrates the power of **Somnia Data Streams** through a real-wo
 
 - **🔗 Schema Inheritance**: GPS base schema extended with ISS-specific data
 - **⚡ Real-Time Reactivity**: WebSocket subscriptions with zero-fetch ethCalls pattern
-- **⏮️ Historical Replay**: Scrub through 24 hours of orbit history
+- **🛰️ Live Tracking**: Real-time position updates with orbit trail
 - **🌐 On-Chain Storage**: All data verifiable on Somnia blockchain
 
 ### Why This Matters
@@ -59,7 +59,7 @@ npm install
 
 ### 2. Configure Environment
 
-Create `.env.local` from the example:
+Create `.env.local` in the project root:
 
 ```bash
 cp .env.example .env.local
@@ -68,19 +68,20 @@ cp .env.example .env.local
 Edit `.env.local` with your values:
 
 ```env
-# Server-side only (Oracle)
+# Required - Your Somnia wallet private key
 PRIVATE_KEY=0x...your_private_key_here
-CRON_SECRET=generate_a_random_secure_string
 
-# Public (Client & Server) - will be set after schema registration
+# Public (set after schema registration)
 NEXT_PUBLIC_GPS_SCHEMA_ID=
 NEXT_PUBLIC_ISS_SCHEMA_ID=
 NEXT_PUBLIC_PUBLISHER_ADDRESS=
 
-# Optional (defaults provided)
-RPC_URL=https://dream-rpc.somnia.network
-WS_URL=wss://dream-rpc.somnia.network
+# RPC/WebSocket endpoints
+NEXT_PUBLIC_RPC_URL=https://api.infra.testnet.somnia.network
+NEXT_PUBLIC_WS_URL=wss://api.infra.testnet.somnia.network/ws
 ```
+
+**Note:** The oracle service reads from the same `.env.local` file in the project root.
 
 ### 3. Register Schemas
 
@@ -104,26 +105,31 @@ NEXT_PUBLIC_PUBLISHER_ADDRESS=0x...
 
 **Important:** Copy the output values to your `.env.local` file!
 
-### 4. Start Development Server
+### 4. Start Oracle Service
+
+In one terminal, start the oracle service (publishes ISS position every 5 seconds):
 
 ```bash
-npm run dev
-```
-
-### 5. Test the Oracle
-
-In a separate terminal, publish your first ISS position:
-
-```bash
-npm run test-oracle
+cd oracle
+npm install
+npm start
 ```
 
 **Expected output:**
 ```
-✅ Oracle Success!
-TX Hash: 0x...
-Position: 51.5074, -0.1278
-🎉 ISS position published to blockchain!
+🚀 ISS Oracle Service Starting...
+✅ Connected to Somnia testnet
+✅ Publishing ISS position #1
+✅ Publishing ISS position #2
+...
+```
+
+### 5. Start Frontend
+
+In a separate terminal, start the Next.js frontend:
+
+```bash
+npm run dev
 ```
 
 ### 6. View the App
@@ -131,10 +137,11 @@ Position: 51.5074, -0.1278
 Open [http://localhost:3000](http://localhost:3000)
 
 You should see:
-- 🗺️ World map with ISS position marker
+- 🗺️ World map with dark theme
+- 🟢 Green glowing ISS marker (radar ping style)
+- 🔵 Blue orbit trail (last ~100 positions)
 - 📊 Real-time position updates every ~5 seconds
 - 📈 Info panel showing GPS + ISS data
-- ⏯️ Timeline scrubber for historical replay
 
 ---
 
@@ -143,33 +150,38 @@ You should see:
 ```
 sds-iss-tracker/
 ├── app/
-│   ├── api/
-│   │   └── cron/
-│   │       └── sync-iss/         # Oracle API route (Vercel Cron)
-│   │           └── route.ts
 │   ├── layout.tsx
-│   └── page.tsx                  # Main app page
+│   ├── page.tsx                  # Main app page
+│   └── globals.css               # Global styles (radar ping glow)
 ├── components/
 │   ├── ISSMap.tsx                # Leaflet map component
-│   ├── Timeline.tsx              # Replay timeline
 │   └── ISSInfo.tsx               # Info panel
 ├── hooks/
-│   └── useISSLocations.ts        # Data fetching + subscriptions
+│   └── useISSLocations.ts        # Real-time WebSocket subscriptions
 ├── lib/
 │   ├── chains.ts                 # Somnia chain definition
 │   ├── constants.ts              # Schemas + constants
 │   ├── sdk.ts                    # Server-side SDK
 │   ├── client-sdk.ts             # Client-side SDK
 │   └── iss-encoding.ts           # Encoding/decoding helpers
+├── oracle/                       # Standalone oracle service
+│   ├── service.ts                # Main oracle logic (setInterval)
+│   ├── package.json              # Oracle dependencies
+│   └── tsconfig.json             # Oracle TypeScript config
 ├── scripts/
-│   ├── register-schemas.ts       # Schema registration
-│   └── test-oracle.ts            # Test oracle locally
+│   └── register-schemas.ts       # Schema registration
 ├── types/
 │   └── iss.ts                    # TypeScript interfaces
 ├── .env.example                  # Environment template
-├── vercel.json                   # Vercel cron config
 └── README.md                     # This file
 ```
+
+**Key Components:**
+
+- **`oracle/`**: Standalone Node.js service that fetches ISS data every 5 seconds and publishes to blockchain
+- **`hooks/useISSLocations.ts`**: WebSocket subscription hook that builds orbit trail from live data
+- **`components/ISSMap.tsx`**: Leaflet map with green radar ping marker and blue trail dots
+- **`lib/iss-encoding.ts`**: Encodes/decodes data according to GPS + ISS schema
 
 ---
 
@@ -216,7 +228,8 @@ When querying ISS data, you get **both** GPS fields + ISS fields automatically!
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ 1. Oracle (Vercel Cron every 5 seconds)                │
+│ 1. Oracle Service (Node.js, runs continuously)         │
+│    ↓ setInterval every 5 seconds                       │
 │    ↓ Fetches from Open Notify API                      │
 │    ↓ Encodes with GPS + ISS schemas                    │
 │    ↓ Publishes to Somnia blockchain                    │
@@ -239,8 +252,8 @@ When querying ISS data, you get **both** GPS fields + ISS fields automatically!
                          ↓
 ┌─────────────────────────────────────────────────────────┐
 │ 4. UI Updates                                           │
-│    • Map marker moves to new position                   │
-│    • Orbit trail extends                                │
+│    • Green radar ping marker moves to new position      │
+│    • Blue orbit trail extends (last ~100 positions)     │
 │    • Info panel updates                                 │
 │    • ZERO additional RPC calls needed!                  │
 └─────────────────────────────────────────────────────────┘
@@ -270,15 +283,10 @@ Somnia approach:
 
 ### Available Scripts
 
+**Frontend:**
 ```bash
 # Start development server
 npm run dev
-
-# Register schemas on blockchain
-npm run register-schemas
-
-# Test oracle manually
-npm run test-oracle
 
 # Build for production
 npm run build
@@ -290,72 +298,64 @@ npm start
 npm run lint
 ```
 
+**Oracle:**
+```bash
+cd oracle
+
+# Start oracle service
+npm start
+```
+
+**Setup:**
+```bash
+# Register schemas on blockchain (one-time)
+npm run register-schemas
+```
+
 ### Testing Locally
 
-1. **Start dev server:**
+1. **Terminal 1 - Start Oracle:**
+   ```bash
+   cd oracle
+   npm install
+   npm start
+   ```
+   Look for: `✅ Publishing ISS position #X`
+
+2. **Terminal 2 - Start Frontend:**
    ```bash
    npm run dev
    ```
 
-2. **In another terminal, publish test data:**
-   ```bash
-   npm run test-oracle
-   ```
-
 3. **Check browser console for:**
-   - "Loaded X historical positions"
-   - "Subscribed to ISSPositionUpdated events"
-   - "New ISS position received!"
+   - "🔌 Setting up WebSocket subscription..."
+   - "✅ Subscribed to ISSPositionUpdated events"
+   - "🛰️ ISS position #X received!"
+   - Watch the green radar ping and blue trail appear on the map!
 
 ---
 
 ## 🚢 Deployment
 
-### Deploy to Vercel
+### Frontend
 
-1. **Install Vercel CLI:**
-   ```bash
-   npm i -g vercel
-   ```
+The Next.js frontend can be deployed to Vercel, Netlify, or any Node.js hosting platform.
 
-2. **Login:**
-   ```bash
-   vercel login
-   ```
+**Environment variables to set:**
+- `NEXT_PUBLIC_GPS_SCHEMA_ID`
+- `NEXT_PUBLIC_ISS_SCHEMA_ID`
+- `NEXT_PUBLIC_PUBLISHER_ADDRESS`
+- `NEXT_PUBLIC_RPC_URL`
+- `NEXT_PUBLIC_WS_URL`
 
-3. **Deploy:**
-   ```bash
-   vercel
-   ```
+### Oracle Service
 
-4. **Set Environment Variables** in Vercel Dashboard:
-   - `PRIVATE_KEY`
-   - `CRON_SECRET`
-   - `NEXT_PUBLIC_GPS_SCHEMA_ID`
-   - `NEXT_PUBLIC_ISS_SCHEMA_ID`
-   - `NEXT_PUBLIC_PUBLISHER_ADDRESS`
+The oracle service is a standalone Node.js process that needs to run continuously. Deploy it to:
+- Cloud VMs (GCP, AWS, Azure)
+- Container platforms (Docker, Kubernetes)
+- Serverless platforms with long-running support
 
-5. **Deploy to production:**
-   ```bash
-   vercel --prod
-   ```
-
-### Vercel Cron
-
-The oracle runs automatically via Vercel Cron (configured in `vercel.json`):
-
-```json
-{
-  "crons": [
-    {
-      "path": "/api/cron/sync-iss",
-      "schedule": "*/5 * * * * *"  // Every 5 seconds
-    }
-  ]
-}
-```
-
-Vercel will automatically call your oracle endpoint every 5 seconds!
+See `oracle/README.md` for deployment details.
 
 ---
 
@@ -419,7 +419,7 @@ MIT License - See [LICENSE](./LICENSE) for details
 ---
 
 <p align="center">
-  Built with ❤️ using <a href="https://datastreams.somnia.network/">Somnia Data Streams</a>
+  Built by <a href="https://github.com/local-optimum">@local-optimum</a> with ❤️ using <a href="https://datastreams.somnia.network/">Somnia Data Streams</a>
 </p>
 
 <p align="center">
