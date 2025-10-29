@@ -33,8 +33,14 @@ export function Timeline({
   onTimeWindowChange
 }: TimelineProps) {
   const [isPlaying, setIsPlaying] = useState(true)
+  const [isMounted, setIsMounted] = useState(false)
 
-  const now = Date.now()
+  // Handle SSR to avoid hydration mismatch with Date.now()
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  const now = isMounted ? Date.now() : currentTime
   const minTime = now - timeWindow
   const maxTime = now
 
@@ -85,36 +91,47 @@ export function Timeline({
       </div>
 
       {/* Scrubber */}
-      <div className="space-y-2">
-        {/* Progress bar background */}
-        <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
-          <div 
-            className="absolute h-full bg-gradient-to-r from-blue-600 to-blue-500 transition-all duration-300"
-            style={{ width: `${progress}%` }}
+      {!isMounted ? (
+        <div className="space-y-2">
+          <div className="h-2 bg-gray-700 rounded-full animate-pulse" />
+          <div className="flex items-center justify-between text-xs text-gray-400">
+            <span>--:--:--</span>
+            <span className="font-semibold text-white bg-gray-800 px-3 py-1 rounded-md">--:--:--</span>
+            <span className="font-medium text-green-400">NOW</span>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {/* Progress bar background */}
+          <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div 
+              className="absolute h-full bg-gradient-to-r from-blue-600 to-blue-500 transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          
+          {/* Slider input */}
+          <input
+            type="range"
+            min={minTime}
+            max={maxTime}
+            value={currentTime}
+            onChange={handleSliderChange}
+            className="w-full h-2 bg-transparent rounded-lg appearance-none cursor-pointer relative -mt-2"
+            style={{
+              background: 'transparent'
+            }}
           />
+          
+          <div className="flex items-center justify-between text-xs text-gray-400">
+            <span>{new Date(minTime).toLocaleTimeString()}</span>
+            <span className="font-semibold text-white bg-gray-800 px-3 py-1 rounded-md">
+              {new Date(currentTime).toLocaleTimeString()}
+            </span>
+            <span className="font-medium text-green-400">NOW</span>
+          </div>
         </div>
-        
-        {/* Slider input */}
-        <input
-          type="range"
-          min={minTime}
-          max={maxTime}
-          value={currentTime}
-          onChange={handleSliderChange}
-          className="w-full h-2 bg-transparent rounded-lg appearance-none cursor-pointer relative -mt-2"
-          style={{
-            background: 'transparent'
-          }}
-        />
-        
-        <div className="flex items-center justify-between text-xs text-gray-400">
-          <span>{new Date(minTime).toLocaleTimeString()}</span>
-          <span className="font-semibold text-white bg-gray-800 px-3 py-1 rounded-md">
-            {new Date(currentTime).toLocaleTimeString()}
-          </span>
-          <span className="font-medium text-green-400">NOW</span>
-        </div>
-      </div>
+      )}
 
       {/* Controls */}
       <div className="flex items-center justify-between mt-4">

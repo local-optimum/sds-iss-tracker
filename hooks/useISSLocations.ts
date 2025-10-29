@@ -62,7 +62,13 @@ export function useISSLocations({
     async function fetchInitialLocations(): Promise<ISSLocation[]> {
       console.log('📥 Fetching ISS position history from blockchain...')
       
-      const sdk = getClientFetchSDK() // HTTP client for fetching
+      let sdk
+      try {
+        sdk = getClientFetchSDK() // HTTP client for fetching
+      } catch (error) {
+        console.error('❌ Failed to create fetch SDK:', error)
+        return []
+      }
       
       try {
         // Get total count of positions published
@@ -236,13 +242,28 @@ export function useISSLocations({
             console.error('❌ Subscription error:', error.message)
             isSubscribed = false
             
-            // Auto-reconnect after 3 seconds
-            console.log('🔄 Reconnecting in 3 seconds...')
-            setTimeout(() => {
-              if (!isSubscribed) {
-                setupSubscription()
-              }
-            }, 3000)
+            // Fetch any missed positions before reconnecting
+            console.log('📥 Fetching missed positions before reconnecting...')
+            fetchInitialLocations()
+              .then(locations => {
+                if (locations.length > currentLocations.length) {
+                  console.log(`📥 Found ${locations.length - currentLocations.length} new positions during disconnect`)
+                  currentLocations = locations
+                  onLocationsUpdateRef.current(locations)
+                }
+              })
+              .catch(err => {
+                console.error('⚠️  Failed to fetch missed positions:', err)
+              })
+              .finally(() => {
+                // Auto-reconnect after 3 seconds
+                console.log('🔄 Reconnecting in 3 seconds...')
+                setTimeout(() => {
+                  if (!isSubscribed) {
+                    setupSubscription()
+                  }
+                }, 3000)
+              })
           }
         })
         
@@ -264,28 +285,68 @@ export function useISSLocations({
       }
     }
 
-    // Initialize: Fetch history FIRST, then subscribe
+    // Initialize: Fetch history FIRST, then subscribe (non-blocking with setTimeout)
     console.log('🚀 Initializing ISS location tracking...')
     
-    fetchInitialLocations().then(locations => {
-      currentLocations = locations
-      console.log(`📋 Initialized with ${locations.length} historical positions`)
-      console.log('🔌 Now setting up WebSocket subscription for real-time updates...')
-      
-      // Update parent with initial data
-      onLocationsUpdateRef.current(locations)
-      
-      // Start real-time subscription
-      setupSubscription()
-    }).catch(error => {
-      console.error('❌ Failed initial fetch:', error)
-      // Try subscription anyway (might work even without historical data)
-      setupSubscription()
-    })
+    // Defer to avoid blocking render
+    setTimeout(() => {
+      fetchInitialLocations()
+        .then(locations => {
+          currentLocations = locations
+          console.log(`📋 Initialized with ${locations.length} historical positions`)
+          console.log('🔌 Now setting up WebSocket subscription for real-time updates...')
+          
+          // Update parent with initial data
+          onLocationsUpdateRef.current(locations)
+          
+          // Start real-time subscription
+          setupSubscription()
+        })
+        .catch(error => {
+          console.error('❌ Failed initial fetch:', error)
+          // Update parent with empty array so UI can render
+          onLocationsUpdateRef.current([])
+          // Try subscription anyway (might work even without historical data)
+          setupSubscription()
+        })
+    }, 100) // Small delay to ensure render completes first
+    
+    // Handle tab visibility changes (wake from sleep/hibernation)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('👁️  Tab became visible, checking for missed ISS positions...')
+        
+        // Fetch any missed positions while tab was hidden
+        fetchInitialLocations()
+          .then(locations => {
+            if (locations.length > currentLocations.length) {
+              console.log(`📥 Found ${locations.length - currentLocations.length} new positions while tab was hidden`)
+              currentLocations = locations
+              onLocationsUpdateRef.current(locations)
+            }
+            
+            // Re-establish WebSocket if needed
+            if (!isSubscribed) {
+              console.log('🔄 Re-establishing WebSocket connection...')
+              setupSubscription()
+            }
+          })
+          .catch(error => {
+            console.error('❌ Failed to fetch missed positions:', error)
+          })
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     // Cleanup on unmount
     return () => {
       console.log('🧹 Cleaning up ISS location subscription...')
+      
+      // Remove visibility change listener
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      
+      // Unsubscribe from WebSocket
       if (subscription) {
         try {
           subscription.unsubscribe()

@@ -12,7 +12,7 @@
  */
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Timeline } from '@/components/Timeline'
 import { ISSInfo } from '@/components/ISSInfo'
@@ -31,11 +31,11 @@ const ISSMap = dynamic(
 
 export default function Home() {
   const [locations, setLocations] = useState<ISSLocation[]>([])
-  const [currentTime, setCurrentTime] = useState(Date.now())
+  const [currentTime, setCurrentTime] = useState(() => Date.now())
   const [timeWindow, setTimeWindow] = useState(24 * 60 * 60 * 1000) // 24 hours
   const [isMounted, setIsMounted] = useState(false)
 
-  // Handle SSR
+  // Handle SSR for Leaflet
   useEffect(() => {
     setIsMounted(true)
   }, [])
