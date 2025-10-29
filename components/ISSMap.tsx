@@ -84,33 +84,33 @@ export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapP
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
       />
 
-      {/* ISS orbit trail - subtle dots with age-based opacity */}
+      {/* ISS orbit trail - blue dots with age-based fade */}
       {trailDots.map((dot, index) => (
         <CircleMarker
           key={`trail-${dot.nonce}-${index}`}
           center={[dot.lat, dot.lon]}
           radius={2}
           pathOptions={{
-            fillColor: '#4b5563',
-            fillOpacity: dot.opacity * 0.4,
-            color: '#6b7280',
+            fillColor: '#60a5fa',
+            fillOpacity: dot.opacity * 0.7,
+            color: '#3b82f6',
             weight: 0
           }}
         />
       ))}
 
-      {/* Current ISS position marker - subtle glow */}
+      {/* Current ISS position marker - bright radar ping */}
       {currentLocation && (
         <CircleMarker
           key={`iss-${currentLocation.nonce}`}
           center={[currentLocation.latitude, currentLocation.longitude]}
-          radius={6}
+          radius={4}
           pathOptions={{
-            fillColor: '#a78bfa',
-            fillOpacity: 0.9,
-            color: '#8b5cf6',
-            weight: 1,
-            opacity: 0.6,
+            fillColor: '#00ff00',
+            fillOpacity: 1,
+            color: '#00ff00',
+            weight: 2,
+            opacity: 1,
             className: 'iss-marker-glow'
           }}
         >
@@ -144,32 +144,6 @@ export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapP
             </Popup>
         </CircleMarker>
       )}
-
-      {/* Map legend */}
-      <div className="leaflet-bottom leaflet-right">
-        <div className="leaflet-control bg-gray-900/90 backdrop-blur-sm text-white p-3 rounded-lg border border-gray-700 shadow-xl">
-          <div className="text-xs font-semibold mb-2">Legend</div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 text-xs">
-              <div className="w-2.5 h-2.5 rounded-full bg-purple-400 border border-purple-500"></div>
-              <span>ISS Position (Live)</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <div className="flex items-center gap-0.5">
-                <div className="w-1 h-1 rounded-full bg-gray-500 opacity-30"></div>
-                <div className="w-1 h-1 rounded-full bg-gray-500 opacity-50"></div>
-                <div className="w-1 h-1 rounded-full bg-gray-500 opacity-70"></div>
-              </div>
-              <span>Orbit Trail</span>
-            </div>
-            {currentLocation && (
-              <div className="mt-2 pt-2 border-t border-gray-700 text-xs text-gray-300">
-                <div>{locations.length} positions tracked</div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* No data message */}
       {!currentLocation && (

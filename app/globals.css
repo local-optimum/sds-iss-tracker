@@ -25,16 +25,16 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Subtle glowing effects for ISS tracker */
+/* Bright radar ping effect for ISS tracker */
 @keyframes pulse-glow {
   0%, 100% {
-    filter: drop-shadow(0 0 2px rgba(139, 92, 246, 0.3));
+    filter: drop-shadow(0 0 6px rgba(0, 255, 0, 0.8)) drop-shadow(0 0 3px rgba(0, 255, 0, 1));
   }
   50% {
-    filter: drop-shadow(0 0 3px rgba(139, 92, 246, 0.5));
+    filter: drop-shadow(0 0 12px rgba(0, 255, 0, 1)) drop-shadow(0 0 6px rgba(0, 255, 0, 1));
   }
 }
 
 .iss-marker-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-glow 1.5s ease-in-out infinite;
 }
