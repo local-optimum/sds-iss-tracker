@@ -145,15 +145,19 @@ export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapP
         </CircleMarker>
       )}
 
-      {/* No data message */}
+      {/* Loading message - centered */}
       {!currentLocation && (
-        <div className="leaflet-top leaflet-center" style={{ pointerEvents: 'none' }}>
+        <div style={{ 
+          position: 'absolute', 
+          top: '50%', 
+          left: '50%', 
+          transform: 'translate(-50%, -50%)',
+          zIndex: 1000,
+          pointerEvents: 'none'
+        }}>
           <div className="bg-gray-900/90 backdrop-blur-sm text-white p-6 rounded-lg border border-gray-700 shadow-xl text-center">
             <div className="text-4xl mb-2">🛰️</div>
-            <div className="text-sm">Waiting for ISS data...</div>
-            <div className="text-xs text-gray-400 mt-2">
-              Run oracle to publish first position
-            </div>
+            <div className="text-sm">Subscribing to chain...</div>
           </div>
         </div>
       )}
