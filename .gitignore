@@ -53,7 +53,6 @@ next-env.d.ts
 # Oracle
 oracle/node_modules/
 
-# Documentation & debug files (project-specific, not for repo)
-/docs/
+# Debug files (project-specific, not for repo)
 WEBSOCKET_DIAGNOSTIC_REPORT.md
 test-websocket.js
