@@ -12,7 +12,8 @@
  */
 'use client'
 
-import { useState, useCallback, useEffect, useMemo, dynamic } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { Timeline } from '@/components/Timeline'
 import { ISSInfo } from '@/components/ISSInfo'
 import { useISSLocations } from '@/hooks/useISSLocations'
