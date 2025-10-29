@@ -65,7 +65,10 @@ export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapP
   console.log(`   Rendering ${trailDots.length} trail dots`)
   console.log(`   Current location:`, currentLocation ? `${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)} (nonce ${currentLocation.nonce})` : 'none')
   if (locations.length > 0) {
-    console.log(`   Location nonce range: ${Math.min(...locations.map(l => l.nonce))} - ${Math.max(...locations.map(l => l.nonce))}`)
+    const nonces = locations.map(l => l.nonce)
+    const minNonce = nonces.reduce((min, n) => n < min ? n : min, nonces[0])
+    const maxNonce = nonces.reduce((max, n) => n > max ? n : max, nonces[0])
+    console.log(`   Location nonce range: ${minNonce} - ${maxNonce}`)
   }
 
   return (
