@@ -1,0 +1,11 @@
+# Don't deploy oracle service to Vercel (runs on GCP VM instead)
+oracle/
+
+# Don't need these on Vercel
+scripts/
+docs/
+*.md
+!README.md
+test-websocket.js
+WEBSOCKET_DIAGNOSTIC_REPORT.md
+

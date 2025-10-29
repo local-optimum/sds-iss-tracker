@@ -1,0 +1,24 @@
+{
+  "name": "iss-oracle-service",
+  "version": "1.0.0",
+  "description": "ISS position oracle service for Somnia Data Streams",
+  "type": "module",
+  "scripts": {
+    "start": "tsx service.ts",
+    "build": "tsc",
+    "dev": "tsx watch service.ts"
+  },
+  "dependencies": {
+    "@somnia-chain/streams": "^0.9.1",
+    "viem": "^2.37.13",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.16.2",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}
+
