@@ -170,10 +170,14 @@ export function useISSLocations({
         
         console.log(`✅ Loaded ${validLocations.length} valid historical positions`)
         if (validLocations.length > 0) {
-          const oldest = new Date(validLocations[0].timestamp).toISOString()
-          const newest = new Date(validLocations[validLocations.length - 1].timestamp).toISOString()
-          console.log(`   Oldest: ${oldest}`)
-          console.log(`   Newest: ${newest}`)
+          try {
+            const oldest = new Date(validLocations[0].timestamp).toISOString()
+            const newest = new Date(validLocations[validLocations.length - 1].timestamp).toISOString()
+            console.log(`   Oldest: ${oldest}`)
+            console.log(`   Newest: ${newest}`)
+          } catch (e) {
+            console.warn(`   Invalid timestamps (first: ${validLocations[0].timestamp}, last: ${validLocations[validLocations.length - 1].timestamp})`)
+          }
           console.log(`   Nonce range: ${validLocations[0].nonce} - ${validLocations[validLocations.length - 1].nonce}`)
           console.log(`   Sample first position:`, validLocations[0])
           console.log(`   Sample last position:`, validLocations[validLocations.length - 1])
