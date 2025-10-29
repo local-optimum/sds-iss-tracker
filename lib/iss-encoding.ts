@@ -50,7 +50,7 @@ export function encodeISSLocation(
   nonce: bigint
 ): `0x${string}` {
   // ===== GPS Schema Fields (Parent) =====
-  const timestamp = apiData.timestamp * 1000 // Convert to milliseconds
+  const timestamp = BigInt(apiData.timestamp * 1000) // Convert to milliseconds as BigInt
   
   // Store coordinates as integers with 6 decimal precision
   // e.g., 51.234567° becomes 51234567
