@@ -37,7 +37,13 @@ export default function Home() {
   }, [])
 
   const handleLocationsUpdate = useCallback((newLocations: ISSLocation[]) => {
-    console.log('📊 ISS locations updated:', newLocations.length, 'positions')
+    console.log('📊 Parent: ISS locations updated:', newLocations.length, 'positions')
+    if (newLocations.length > 0) {
+      const nonces = newLocations.map(l => l.nonce)
+      const minNonce = nonces.reduce((min, n) => n < min ? n : min, nonces[0])
+      const maxNonce = nonces.reduce((max, n) => n > max ? n : max, nonces[0])
+      console.log(`   Parent: Nonce range ${minNonce} - ${maxNonce}`)
+    }
     setLocations(newLocations)
   }, [])
 

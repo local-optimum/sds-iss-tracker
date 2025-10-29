@@ -28,30 +28,15 @@ body {
 /* Web3 glowing effects for ISS tracker */
 @keyframes pulse-glow {
   0%, 100% {
-    filter: drop-shadow(0 0 4px rgba(139, 92, 246, 0.8)) drop-shadow(0 0 8px rgba(139, 92, 246, 0.4));
+    filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.8)) drop-shadow(0 0 12px rgba(139, 92, 246, 0.4));
   }
   50% {
-    filter: drop-shadow(0 0 8px rgba(139, 92, 246, 1)) drop-shadow(0 0 16px rgba(139, 92, 246, 0.6));
-  }
-}
-
-@keyframes pulse-outer {
-  0%, 100% {
-    filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.3));
-    transform: scale(1);
-  }
-  50% {
-    filter: drop-shadow(0 0 16px rgba(139, 92, 246, 0.5));
-    transform: scale(1.1);
+    filter: drop-shadow(0 0 10px rgba(139, 92, 246, 1)) drop-shadow(0 0 20px rgba(139, 92, 246, 0.6));
   }
 }
 
 .iss-marker-glow {
   animation: pulse-glow 2s ease-in-out infinite;
-}
-
-.iss-outer-glow {
-  animation: pulse-outer 2s ease-in-out infinite;
 }
 
 .trail-dot-glow {

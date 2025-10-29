@@ -102,7 +102,11 @@ export function useISSLocations({
         
         const locations: ISSLocation[] = []
         
+        console.log('🔍 getBetweenRange returned:', typeof data, Array.isArray(data) ? `array of ${data.length}` : data instanceof Error ? 'Error' : 'other')
+        
         if (data && !(data instanceof Error) && Array.isArray(data)) {
+          console.log(`📦 Processing ${data.length} items from range query...`)
+          
           for (let i = 0; i < data.length; i++) {
             const positionData = data[i]
             
@@ -130,11 +134,18 @@ export function useISSLocations({
                 }
                 
                 locations.push(location)
+                if (i < 3 || i >= data.length - 3) {
+                  console.log(`   Position ${i}: nonce ${location.nonce}, lat ${location.latitude.toFixed(2)}`)
+                }
               } catch (error) {
                 console.error(`❌ Failed to decode position ${i}:`, error)
               }
+            } else {
+              console.warn(`⚠️  Position ${i} is invalid:`, typeof positionData, Array.isArray(positionData) ? `length ${positionData.length}` : '')
             }
           }
+        } else {
+          console.error('❌ getBetweenRange returned invalid data')
         }
         
         // Sort by timestamp (oldest first)

@@ -107,36 +107,19 @@ export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapP
 
       {/* Current ISS position marker - glowing pulsing dot */}
       {currentLocation && (
-        <>
-          {/* Outer glow ring (render first so it's behind) */}
-          <CircleMarker
-            key={`outer-${currentLocation.nonce}`}
-            center={[currentLocation.latitude, currentLocation.longitude]}
-            radius={16}
-            pathOptions={{
-              fillColor: '#a78bfa',
-              fillOpacity: 0.15,
-              color: '#8b5cf6',
-              weight: 1,
-              opacity: 0.4,
-              className: 'iss-outer-glow'
-            }}
-          />
-          
-          {/* Main ISS marker */}
-          <CircleMarker
-            key={`iss-${currentLocation.nonce}`}
-            center={[currentLocation.latitude, currentLocation.longitude]}
-            radius={8}
-            pathOptions={{
-              fillColor: '#a78bfa',
-              fillOpacity: 1,
-              color: '#8b5cf6',
-              weight: 2,
-              opacity: 0.8,
-              className: 'iss-marker-glow'
-            }}
-          >
+        <CircleMarker
+          key={`iss-${currentLocation.nonce}`}
+          center={[currentLocation.latitude, currentLocation.longitude]}
+          radius={10}
+          pathOptions={{
+            fillColor: '#a78bfa',
+            fillOpacity: 1,
+            color: '#8b5cf6',
+            weight: 2,
+            opacity: 0.8,
+            className: 'iss-marker-glow'
+          }}
+        >
             <Popup>
               <div className="text-sm space-y-1">
                 <div className="font-bold text-base mb-2">🛰️ ISS Current Position</div>
@@ -165,8 +148,7 @@ export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapP
                 </div>
               </div>
             </Popup>
-          </CircleMarker>
-        </>
+        </CircleMarker>
       )}
 
       {/* Map legend */}
