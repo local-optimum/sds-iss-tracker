@@ -13,7 +13,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Polyline, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { ISSLocation } from '@/types/iss'
@@ -49,14 +49,27 @@ export function ISSMap({ locations, currentTime, showTrail = true }: ISSMapProps
       })
     : null
 
-  // All locations passed in are already filtered by parent
-  // Just use them for the trail
-  const trailLocations = showTrail ? locations : []
-
-  // Convert to Leaflet LatLng format
-  const trailPath = trailLocations.map(l => [l.latitude, l.longitude] as [number, number])
+  // All locations passed in are already filtered by parent (within time window)
+  // Calculate opacity based on age (newer = more opaque)
+  const now = currentTime
+  const oldestTime = locations.length > 0 ? Math.min(...locations.map(l => l.timestamp)) : now
+  const timeRange = now - oldestTime
   
-  console.log(`🗺️  ISSMap render: ${locations.length} positions, trail: ${trailPath.length} points, current:`, currentLocation ? `${currentLocation.latitude.toFixed(2)}, ${currentLocation.longitude.toFixed(2)}` : 'none')
+  const trailDots = showTrail ? locations
+    .filter(l => l.latitude !== 0 && l.longitude !== 0) // Filter invalid positions
+    .map(l => ({
+      lat: l.latitude,
+      lon: l.longitude,
+      timestamp: l.timestamp,
+      nonce: l.nonce,
+      // Opacity: 0.2 (oldest) to 0.8 (newest)
+      opacity: timeRange > 0 
+        ? 0.2 + ((l.timestamp - oldestTime) / timeRange) * 0.6
+        : 0.8
+    }))
+    : []
+  
+  console.log(`🗺️  ISSMap render: ${locations.length} positions, trail: ${trailDots.length} dots, current:`, currentLocation ? `${currentLocation.latitude.toFixed(2)}, ${currentLocation.longitude.toFixed(2)}` : 'none')
 
   return (
     <MapContainer
@@ -76,19 +89,21 @@ export function ISSMap({ locations, currentTime, showTrail = true }: ISSMapProps
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
       />
 
-      {/* ISS orbit trail */}
-      {trailPath.length > 1 && (
-        <Polyline
-          positions={trailPath}
+      {/* ISS orbit trail - individual dots with age-based opacity */}
+      {trailDots.map((dot, index) => (
+        <CircleMarker
+          key={`trail-${dot.nonce}-${index}`}
+          center={[dot.lat, dot.lon]}
+          radius={4}
           pathOptions={{
-            color: '#3b82f6',
-            weight: 2,
-            opacity: 0.7,
-            lineCap: 'round',
-            lineJoin: 'round'
+            fillColor: '#3b82f6',
+            fillOpacity: dot.opacity,
+            color: '#1d4ed8',
+            weight: 1,
+            opacity: dot.opacity * 0.5
           }}
         />
-      )}
+      ))}
 
       {/* Current ISS position marker */}
       {currentLocation && (
@@ -159,8 +174,13 @@ export function ISSMap({ locations, currentTime, showTrail = true }: ISSMapProps
               <span>ISS Position</span>
             </div>
             <div className="flex items-center gap-2 text-xs">
-              <div className="w-8 h-0.5 bg-blue-500 shadow-sm"></div>
-              <span>Orbit Trail</span>
+              <div className="flex items-center gap-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 opacity-30"></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 opacity-50"></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 opacity-70"></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 opacity-90"></div>
+              </div>
+              <span>Orbit Trail (fades with age)</span>
             </div>
             {currentLocation && (
               <div className="mt-2 pt-2 border-t border-gray-700 text-xs text-gray-300">
