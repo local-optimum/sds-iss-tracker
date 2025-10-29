@@ -88,33 +88,72 @@ export function useISSLocations({
         // Only fetch the last 100 positions for better performance
         const fetchCount = total > 100n ? 100n : total
         const startIndex = total > 100n ? total - 100n : 0n
+        const endIndex = total - 1n
         
-        console.log(`⏳ Fetching last ${fetchCount} positions (indices ${startIndex} to ${total - 1n})`)
+        console.log(`⏳ Requesting range: ${startIndex} to ${endIndex} (${fetchCount} positions)`)
+        
+        // Fetch positions using range query
+        const data = await sdk.streams.getBetweenRange(
+          ISS_SCHEMA_ID,
+          PUBLISHER_ADDRESS,
+          startIndex,
+          endIndex
+        )
         
         const locations: ISSLocation[] = []
         
-        // NOTE: getBetweenRange has a bug with schema inheritance (mixes indices with field values)
-        // Using getAtIndex instead - less efficient but actually works
-        for (let i = startIndex; i < total; i++) {
-          try {
-            const data = await sdk.streams.getAtIndex(
-              ISS_SCHEMA_ID,
-              PUBLISHER_ADDRESS,
-              i
-            )
-            
-            // getAtIndex returns raw bytes when no schema lookup provided
-            if (data && Array.isArray(data) && data.length > 0 && typeof data[0] === 'string') {
-              const location = decodeISSLocation(data[0] as `0x${string}`)
-              locations.push(location)
-              
-              if (locations.length <= 3 || locations.length === Number(fetchCount)) {
-                console.log(`   Position ${i}: nonce ${location.nonce}, lat ${location.latitude.toFixed(2)}, lon ${location.longitude.toFixed(2)}`)
+        if (data && !(data instanceof Error) && Array.isArray(data)) {
+          console.log(`📦 Processing ${data.length} items from getBetweenRange...`)
+          
+          // Debug: Log ALL field values for first position
+          if (data.length > 0 && Array.isArray(data[0])) {
+            console.log('🔍 FIRST POSITION - ALL RAW VALUES:')
+            for (const field of data[0]) {
+              if (field && field.name && field.value) {
+                console.log(`   ${field.name}: ${field.value.value}`)
               }
             }
-          } catch (error) {
-            console.error(`❌ Failed to fetch position ${i}:`, error)
           }
+          
+          for (let i = 0; i < data.length; i++) {
+            const positionData = data[i]
+            
+            if (positionData && Array.isArray(positionData) && positionData.length > 0) {
+              try {
+                // SDK bug: returns fields in wrong order with schema inheritance!
+                // Field names don't match values - child fields come first but with parent names
+                // Correct mapping discovered via logging:
+                const fields: Record<string, any> = {}
+                for (const field of positionData) {
+                  if (field && field.name && field.value && typeof field.value.value !== 'undefined') {
+                    fields[field.name] = field.value.value
+                  }
+                }
+                
+                // ACTUAL field mapping (SDK returns ISS child fields first, GPS parent second):
+                const location: ISSLocation = {
+                  timestamp: Number(fields.velocity || 0),        // velocity field = timestamp!
+                  latitude: Number(fields.visibility || 0) / 1_000_000,  // visibility field = latitude!
+                  longitude: Number(fields.timestamp || 0) / 1_000_000,  // timestamp field = longitude!
+                  altitude: Number(fields.latitude || 0),         // latitude field = altitude!
+                  accuracy: Number(fields.longitude || 0),        // longitude field = accuracy!
+                  entityId: typeof fields.altitude === 'bigint' ? `0x${fields.altitude.toString(16).padStart(64, '0')}` : String(fields.altitude || ''),  // altitude field = entityId!
+                  nonce: BigInt(fields.accuracy || 0),            // accuracy field = nonce!
+                  velocity: typeof fields.entityId === 'string' && fields.entityId.startsWith('0x') ? parseInt(fields.entityId, 16) : Number(fields.entityId || 0),  // entityId field = velocity!
+                  visibility: Number(fields.nonce || 0)           // nonce field = visibility!
+                }
+                
+                locations.push(location)
+                if (i < 3 || i >= data.length - 3) {
+                  console.log(`   Position ${i}: nonce ${location.nonce}, lat ${location.latitude.toFixed(2)}, lon ${location.longitude.toFixed(2)}`)
+                }
+              } catch (error) {
+                console.error(`❌ Failed to decode position ${i}:`, error)
+              }
+            }
+          }
+        } else {
+          console.error('❌ getBetweenRange returned invalid data')
         }
         
         // Filter out invalid positions (0,0 coordinates or epoch 0)
