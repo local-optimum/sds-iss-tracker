@@ -12,7 +12,7 @@
  */
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -36,17 +36,21 @@ interface ISSMapProps {
 }
 
 /**
- * Component to smoothly fly to ISS position when it updates
+ * Component to center on ISS position ONCE on initial load
+ * After that, user controls the camera
  */
-function FlyToISS({ location }: { location: ISSLocation | null }) {
+function CenterOnISSOnce({ location }: { location: ISSLocation | null }) {
   const map = useMap()
+  const hasCentered = useRef(false)
   
   useEffect(() => {
-    if (location) {
-      map.flyTo([location.latitude, location.longitude], map.getZoom(), {
-        duration: 1,
-        easeLinearity: 0.5
+    if (location && !hasCentered.current) {
+      map.setView([location.latitude, location.longitude], 3, {
+        animate: true,
+        duration: 1
       })
+      hasCentered.current = true
+      console.log('📍 Centered map on ISS initial position')
     }
   }, [location, map])
   
@@ -157,7 +161,7 @@ export function ISSMap({ locations, currentTime, showTrail = true }: ISSMapProps
             }}
           />
           
-          <FlyToISS location={currentLocation} />
+          <CenterOnISSOnce location={currentLocation} />
         </>
       )}
 
