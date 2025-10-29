@@ -12,7 +12,7 @@
  */
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { ISSInfo } from '@/components/ISSInfo'
 import { useISSLocations } from '@/hooks/useISSLocations'
@@ -30,86 +30,29 @@ const ISSMap = dynamic(
 
 export default function Home() {
   const [locations, setLocations] = useState<ISSLocation[]>([])
+  const [currentLocation, setCurrentLocation] = useState<ISSLocation | null>(null)
 
-  // Callbacks for ISS location hook
+  // Handle new positions from subscription
   const handleNewLocation = useCallback((location: ISSLocation) => {
-    console.log('🆕 New ISS position received:', location)
+    setLocations(prev => [...prev, location].slice(-100)) // Keep last 100
+    setCurrentLocation(location)
   }, [])
 
-  const handleLocationsUpdate = useCallback((newLocations: ISSLocation[]) => {
-    console.log('📊 Parent: handleLocationsUpdate called')
-    console.log(`   Received: ${newLocations.length} positions`)
-    
-    if (newLocations.length > 0) {
-      const nonces = newLocations.map(l => l.nonce)
-      const minNonce = nonces.reduce((min, n) => n < min ? n : min, nonces[0])
-      const maxNonce = nonces.reduce((max, n) => n > max ? n : max, nonces[0])
-      console.log(`   Nonce range: ${minNonce} - ${maxNonce}`)
-      
-      const validCount = newLocations.filter(l => l.latitude !== 0 && l.longitude !== 0).length
-      console.log(`   Valid positions: ${validCount} of ${newLocations.length}`)
-    }
-    
-    console.log('   Calling setLocations...')
-    setLocations(newLocations)
-    console.log('   setLocations completed')
-  }, [])
-
-  // Subscribe to ISS locations (fetch + real-time)
-  useISSLocations({
-    onNewLocation: handleNewLocation,
-    onLocationsUpdate: handleLocationsUpdate
-  })
-
-  // Get current location - always the most recent one for live tracking
-  const currentLocation = useMemo(() => {
-    if (locations.length === 0) return null
-    
-    // For live tracking, use the newest location (highest timestamp)
-    const newest = locations.reduce((prev, curr) => {
-      return curr.timestamp > prev.timestamp ? curr : prev
-    })
-    
-    console.log(`📍 Current location: ${newest.latitude.toFixed(4)}, ${newest.longitude.toFixed(4)} at ${new Date(newest.timestamp).toISOString()}`)
-    return newest
-  }, [locations])
-
-  // Log location info for debugging
-  useMemo(() => {
-    console.log(`📦 Parent locations state updated:`)
-    console.log(`   State now contains: ${locations.length} locations`)
-    
-    if (locations.length > 0) {
-      const oldest = Math.min(...locations.map(l => l.timestamp))
-      const newest = Math.max(...locations.map(l => l.timestamp))
-      const nonces = locations.map(l => l.nonce)
-      const minNonce = nonces.reduce((min, n) => n < min ? n : min, nonces[0])
-      const maxNonce = nonces.reduce((max, n) => n > max ? n : max, nonces[0])
-      const validCount = locations.filter(l => l.latitude !== 0 && l.longitude !== 0).length
-      
-      console.log(`   Total: ${locations.length}`)
-      console.log(`   Valid (non-zero): ${validCount}`)
-      console.log(`   Nonce range: ${minNonce} - ${maxNonce}`)
-      console.log(`   Oldest: ${new Date(oldest).toISOString()}`)
-      console.log(`   Newest: ${new Date(newest).toISOString()}`)
-    } else {
-      console.warn('   State is empty!')
-    }
-  }, [locations])
+  // Subscribe to real-time ISS updates
+  useISSLocations({ onNewLocation: handleNewLocation })
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 text-white">
+    <main className="flex flex-col h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 text-white overflow-hidden">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-10 shadow-xl">
-        <div className="max-w-[1800px] mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <span className="text-3xl">🛰️</span>
-                <span>ISS Position Tracker</span>
+      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm z-10 shadow-xl shrink-0">
+        <div className="max-w-[1800px] mx-auto px-3 py-2 sm:px-4 sm:py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold flex items-center gap-1 sm:gap-2">
+                <span className="text-2xl sm:text-3xl">🛰️</span>
+                <span className="truncate">ISS Tracker</span>
               </h1>
-              <div className="text-sm text-gray-400 mt-1 flex items-center gap-2">
-                <span>Powered by</span>
+              <div className="text-xs sm:text-sm text-gray-400 mt-0.5 flex items-center gap-1 sm:gap-2 flex-wrap">
                 <a
                   href="https://datastreams.somnia.network/"
                   target="_blank"
@@ -118,10 +61,6 @@ export default function Home() {
                 >
                   Somnia Data Streams
                 </a>
-                <span className="text-gray-600">•</span>
-                <span className="text-xs bg-blue-900/50 text-blue-400 px-2 py-0.5 rounded-full border border-blue-700/50">
-                  Schema Inheritance Demo
-                </span>
               </div>
             </div>
             
@@ -129,22 +68,22 @@ export default function Home() {
               href="https://github.com/local-optimum/sds-iss-tracker"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-sm border border-gray-700"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-xs border border-gray-700"
             >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
               </svg>
-              View Source
+              <span className="hidden md:inline">Source</span>
             </a>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="max-w-[1800px] mx-auto p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr,400px] gap-4">
-          {/* Map */}
-          <div className="h-[700px] rounded-lg overflow-hidden border border-gray-700 shadow-2xl">
+      {/* Main Content - fills remaining space */}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full flex flex-col lg:flex-row max-w-[1800px] mx-auto p-2 sm:p-3 gap-2 sm:gap-3">
+          {/* Map - takes remaining space */}
+          <div className="flex-1 rounded-lg overflow-hidden border border-gray-700 shadow-2xl min-h-0">
             <ISSMap
               locations={locations}
               currentLocation={currentLocation}
@@ -152,80 +91,47 @@ export default function Home() {
             />
           </div>
 
-          {/* Info Panel */}
-          <div className="space-y-4">
+          {/* Info Panel - fixed width on desktop, auto on mobile */}
+          <div className="lg:w-80 lg:overflow-y-auto shrink-0">
             <ISSInfo
               currentLocation={currentLocation}
               totalLocations={locations.length}
             />
           </div>
         </div>
-
-        {/* Feature Highlights */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gray-900/50 backdrop-blur-sm p-4 rounded-lg border border-gray-700">
-            <div className="text-3xl mb-2">🔗</div>
-            <h3 className="font-bold mb-1">Schema Inheritance</h3>
-            <p className="text-sm text-gray-400">
-              GPS base schema extended with ISS-specific data. Reusable for delivery apps, vehicle tracking, and more.
-            </p>
-          </div>
-          
-          <div className="bg-gray-900/50 backdrop-blur-sm p-4 rounded-lg border border-gray-700">
-            <div className="text-3xl mb-2">⚡</div>
-            <h3 className="font-bold mb-1">Real-Time Reactivity</h3>
-            <p className="text-sm text-gray-400">
-              WebSocket subscriptions with zero-fetch ethCalls pattern. No polling, instant updates.
-            </p>
-          </div>
-          
-          <div className="bg-gray-900/50 backdrop-blur-sm p-4 rounded-lg border border-gray-700">
-            <div className="text-3xl mb-2">🛰️</div>
-            <h3 className="font-bold mb-1">Live Tracking</h3>
-            <p className="text-sm text-gray-400">
-              Real-time ISS position updates every 5 seconds. 24 hours of orbit trail stored on-chain.
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Footer */}
-      <footer className="max-w-[1800px] mx-auto mt-8 text-center text-sm text-gray-500 pb-8 px-4">
-        <div className="border-t border-gray-800 pt-6">
-          <p>
-            Built with{' '}
-            <a
-              href="https://datastreams.somnia.network/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-purple-400 hover:underline"
-            >
-              Somnia Data Streams
-            </a>
-            {' • '}
-            ISS data from{' '}
-            <a
-              href="http://open-notify.org/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-green-400 hover:underline"
-            >
-              Open Notify API
-            </a>
-            {' • '}
-            <a
-              href="https://github.com/local-optimum/sds-iss-tracker"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:underline"
-            >
-              View on GitHub
-            </a>
-          </p>
-          <p className="mt-2 text-xs">
-            Template example demonstrating schema inheritance and real-time blockchain reactivity
-          </p>
-        </div>
+      <footer className="text-center text-xs text-gray-500 py-2 px-4 border-t border-gray-800 shrink-0">
+        <p>
+          Built by{' '}
+          <a
+            href="https://github.com/local-optimum"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-purple-400 hover:underline"
+          >
+            @local-optimum
+          </a>
+          {' '}with{' '}
+          <a
+            href="https://datastreams.somnia.network/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-purple-400 hover:underline"
+          >
+            Somnia Data Streams
+          </a>
+          {' • '}
+          <a
+            href="http://open-notify.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-green-400 hover:underline"
+          >
+            ISS API
+          </a>
+        </p>
       </footer>
     </main>
   )

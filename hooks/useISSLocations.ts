@@ -1,14 +1,12 @@
 /**
  * useISSLocations Hook
  * 
- * Demonstrates the power of Somnia Data Streams reactivity:
- * 1. Initial fetch of historical ISS positions
- * 2. Real-time WebSocket subscription with ZERO-FETCH ethCalls pattern
- * 3. Automatic deduplication by nonce
- * 4. Reconnection handling
+ * Demonstrates real-time Somnia Data Streams reactivity:
+ * - WebSocket subscription with ZERO-FETCH ethCalls pattern
+ * - Automatic deduplication by nonce
+ * - Reconnection handling
  * 
- * Key Learning: Separate HTTP (fetch) and WebSocket (subscribe) clients
- * to avoid SocketClosedError when tabs sleep
+ * Trail is built purely from subscription updates (last ~100 positions)
  */
 'use client'
 
@@ -16,195 +14,35 @@ import { useEffect, useRef } from 'react'
 import { encodeFunctionData, decodeFunctionResult } from 'viem'
 import { ISS_SCHEMA_ID, PUBLISHER_ADDRESS } from '@/lib/constants'
 import { decodeISSLocation } from '@/lib/iss-encoding'
-import { getClientSDK, getClientFetchSDK } from '@/lib/client-sdk'
+import { getClientSDK } from '@/lib/client-sdk'
 import type { ISSLocation } from '@/types/iss'
 
 interface UseISSLocationsProps {
   onNewLocation: (location: ISSLocation) => void
-  onLocationsUpdate: (locations: ISSLocation[]) => void
 }
 
-/**
- * React hook for fetching and subscribing to ISS locations
- * 
- * Features:
- * - Initial fetch of all historical positions using HTTP client
- * - Real-time WebSocket subscriptions with zero-fetch ethCalls
- * - Automatic reconnection on errors
- * - Deduplication by nonce
- * - Tab visibility handling
- */
-export function useISSLocations({
-  onNewLocation,
-  onLocationsUpdate
-}: UseISSLocationsProps) {
-  const onNewLocationRef = useRef(onNewLocation)
-  const onLocationsUpdateRef = useRef(onLocationsUpdate)
+const MAX_TRAIL_LENGTH = 100 // Keep last 100 positions
 
-  // Keep refs updated
+/**
+ * React hook for subscribing to real-time ISS positions
+ */
+export function useISSLocations({ onNewLocation }: UseISSLocationsProps) {
+  const onNewLocationRef = useRef(onNewLocation)
+  const locationsRef = useRef<ISSLocation[]>([])
+
   useEffect(() => {
     onNewLocationRef.current = onNewLocation
   }, [onNewLocation])
 
   useEffect(() => {
-    onLocationsUpdateRef.current = onLocationsUpdate
-  }, [onLocationsUpdate])
-
-  useEffect(() => {
     let subscription: { unsubscribe: () => void } | undefined
     let isSubscribed = false
-    let currentLocations: ISSLocation[] = []
 
-    /**
-     * Fetch all historical ISS positions from blockchain
-     * Uses HTTP client (not WebSocket) to avoid connection issues
-     */
-    async function fetchInitialLocations(): Promise<ISSLocation[]> {
-      console.log('📥 Fetching ISS position history from blockchain...')
-      
-      let sdk
-      try {
-        sdk = getClientFetchSDK() // HTTP client for fetching
-      } catch (error) {
-        console.error('❌ Failed to create fetch SDK:', error)
-        return []
-      }
-      
-      try {
-        // Get total count of positions published
-        const total = await sdk.streams.totalPublisherDataForSchema(
-          ISS_SCHEMA_ID,
-          PUBLISHER_ADDRESS
-        )
-        
-        if (!total || total === 0n) {
-          console.log('ℹ️  No ISS positions on-chain yet')
-          console.log('   Run the oracle to publish first position: npm run test-oracle')
-          return []
-        }
-        
-        console.log(`📊 Found ${total} positions on-chain`)
-        
-        // Only fetch the last 100 positions for better performance
-        const fetchCount = total > 100n ? 100n : total
-        const startIndex = total > 100n ? total - 100n : 0n
-        const endIndex = total - 1n
-        
-        console.log(`⏳ Requesting range: ${startIndex} to ${endIndex} (${fetchCount} positions)`)
-        
-        // Fetch positions using range query
-        const data = await sdk.streams.getBetweenRange(
-          ISS_SCHEMA_ID,
-          PUBLISHER_ADDRESS,
-          startIndex,
-          endIndex
-        )
-        
-        const locations: ISSLocation[] = []
-        
-        if (data && !(data instanceof Error) && Array.isArray(data)) {
-          console.log(`📦 Processing ${data.length} items from getBetweenRange...`)
-          
-          // Debug: Log ALL field values for first position
-          if (data.length > 0 && Array.isArray(data[0])) {
-            console.log('🔍 FIRST POSITION - ALL RAW VALUES:')
-            for (const field of data[0]) {
-              if (field && field.name && field.value) {
-                console.log(`   ${field.name}: ${field.value.value}`)
-              }
-            }
-          }
-          
-          for (let i = 0; i < data.length; i++) {
-            const positionData = data[i]
-            
-            if (positionData && Array.isArray(positionData) && positionData.length > 0) {
-              try {
-                // SDK bug: returns fields in wrong order with schema inheritance!
-                // Field names don't match values - child fields come first but with parent names
-                // Correct mapping discovered via logging:
-                const fields: Record<string, any> = {}
-                for (const field of positionData) {
-                  if (field && field.name && field.value && typeof field.value.value !== 'undefined') {
-                    fields[field.name] = field.value.value
-                  }
-                }
-                
-                // ACTUAL field mapping (SDK returns ISS child fields first, GPS parent second):
-                const location: ISSLocation = {
-                  timestamp: Number(fields.velocity || 0),        // velocity field = timestamp!
-                  latitude: Number(fields.visibility || 0) / 1_000_000,  // visibility field = latitude!
-                  longitude: Number(fields.timestamp || 0) / 1_000_000,  // timestamp field = longitude!
-                  altitude: Number(fields.latitude || 0),         // latitude field = altitude!
-                  accuracy: Number(fields.longitude || 0),        // longitude field = accuracy!
-                  entityId: typeof fields.altitude === 'bigint' ? `0x${fields.altitude.toString(16).padStart(64, '0')}` : String(fields.altitude || ''),  // altitude field = entityId!
-                  nonce: BigInt(fields.accuracy || 0),            // accuracy field = nonce!
-                  velocity: typeof fields.entityId === 'string' && fields.entityId.startsWith('0x') ? parseInt(fields.entityId, 16) : Number(fields.entityId || 0),  // entityId field = velocity!
-                  visibility: Number(fields.nonce || 0)           // nonce field = visibility!
-                }
-                
-                locations.push(location)
-                if (i < 3 || i >= data.length - 3) {
-                  console.log(`   Position ${i}: nonce ${location.nonce}, lat ${location.latitude.toFixed(2)}, lon ${location.longitude.toFixed(2)}`)
-                }
-              } catch (error) {
-                console.error(`❌ Failed to decode position ${i}:`, error)
-              }
-            }
-          }
-        } else {
-          console.error('❌ getBetweenRange returned invalid data')
-        }
-        
-        // Filter out invalid positions (0,0 coordinates or epoch 0)
-        const validLocations = locations.filter(l => 
-          l.latitude !== 0 && 
-          l.longitude !== 0 && 
-          l.timestamp > 0
-        )
-        
-        console.log(`🔍 Filtered: ${locations.length} total → ${validLocations.length} valid positions`)
-        
-        // Sort by timestamp (oldest first)
-        validLocations.sort((a, b) => a.timestamp - b.timestamp)
-        
-        console.log(`✅ Loaded ${validLocations.length} valid historical positions`)
-        if (validLocations.length > 0) {
-          try {
-            const oldest = new Date(validLocations[0].timestamp).toISOString()
-            const newest = new Date(validLocations[validLocations.length - 1].timestamp).toISOString()
-            console.log(`   Oldest: ${oldest}`)
-            console.log(`   Newest: ${newest}`)
-          } catch (e) {
-            console.warn(`   Invalid timestamps (first: ${validLocations[0].timestamp}, last: ${validLocations[validLocations.length - 1].timestamp})`)
-          }
-          console.log(`   Nonce range: ${validLocations[0].nonce} - ${validLocations[validLocations.length - 1].nonce}`)
-          console.log(`   Sample first position:`, validLocations[0])
-          console.log(`   Sample last position:`, validLocations[validLocations.length - 1])
-        } else {
-          console.warn('⚠️  No valid locations loaded from blockchain!')
-        }
-        return validLocations
-      } catch (error) {
-        console.error('❌ Failed to fetch initial locations:', error)
-        return []
-      }
-    }
-
-    /**
-     * Set up WebSocket subscription with ZERO-FETCH ethCalls pattern
-     * 
-     * Key Innovation: When ISSPositionUpdated event fires, we bundle
-     * getLastPublishedDataForSchema in the ethCall, getting the latest
-     * position without any additional RPC calls!
-     */
     async function setupSubscription() {
       try {
         console.log('🔌 Setting up WebSocket subscription...')
         
-        const sdk = getClientSDK() // WebSocket client for subscriptions
-        
-        // Get protocol info for constructing ethCalls
+        const sdk = getClientSDK()
         const protocolInfoResult = await sdk.streams.getSomniaDataStreamsProtocolInfo()
         
         if (!protocolInfoResult || protocolInfoResult instanceof Error) {
@@ -213,15 +51,12 @@ export function useISSLocations({
         
         const protocolInfo = protocolInfoResult
         
-        console.log('📋 Protocol Address:', protocolInfo.address)
-        console.log('🎯 Subscribing to: ISSPositionUpdated')
-        console.log('⚡ Using zero-fetch ethCall pattern')
+        console.log('✅ Subscribing to ISSPositionUpdated events')
         
-        // Subscribe with ethCall that bundles latest position
         const sub = await sdk.streams.subscribe({
           somniaStreamsEventId: 'ISSPositionUpdated',
           
-          // ZERO-FETCH PATTERN: Bundle getLastPublishedDataForSchema in the event
+          // ZERO-FETCH PATTERN: Get latest position in the event
           ethCalls: [{
             to: protocolInfo.address as `0x${string}`,
             data: encodeFunctionData({
@@ -234,18 +69,13 @@ export function useISSLocations({
           onlyPushChanges: false,
           
           onData: (data: unknown) => {
-            console.log('🛰️  New ISS position received via WebSocket!')
-            
             try {
               const { result } = data as { result?: { simulationResults?: readonly `0x${string}`[] } }
               
-              if (!result?.simulationResults || result.simulationResults.length === 0) {
-                console.warn('⚠️  No simulation results in event')
+              if (!result?.simulationResults?.[0]) {
                 return
               }
               
-              // Decode the latest ISS location from ethCall result
-              // CRITICAL: getLastPublishedDataForSchema returns bytes (not bytes[])
               const lastPublishedData = decodeFunctionResult({
                 abi: protocolInfo.abi,
                 functionName: 'getLastPublishedDataForSchema',
@@ -253,43 +83,25 @@ export function useISSLocations({
               }) as `0x${string}`
               
               if (!lastPublishedData || lastPublishedData === '0x') {
-                console.warn('⚠️  No ISS data in ethCall result')
                 return
               }
               
-              console.log('✅ Received ISS position from ethCall (ZERO additional fetches!)')
-              
-              // Decode ISS location (includes GPS parent fields + ISS child fields)
               const location = decodeISSLocation(lastPublishedData)
               
-              console.log(`📍 Position: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`)
-              console.log(`   Nonce: ${location.nonce}`)
-              console.log(`   Velocity: ${location.velocity} km/h`)
-              
-              if (!isSubscribed) {
-                console.warn('⚠️  Received location but not subscribed, ignoring')
-                return
-              }
-              
               // Deduplicate by nonce
-              const isDuplicate = currentLocations.some(l => l.nonce === location.nonce)
-              
-              if (isDuplicate) {
-                console.log(`ℹ️  Position nonce ${location.nonce} already exists (duplicate)`)
+              if (locationsRef.current.some(l => l.nonce === location.nonce)) {
                 return
               }
               
-              // Add new location
-              currentLocations = [...currentLocations, location]
+              // Add to trail, keeping last MAX_TRAIL_LENGTH positions
+              locationsRef.current = [...locationsRef.current, location].slice(-MAX_TRAIL_LENGTH)
               
-              console.log(`🎉 New ISS position added! Total: ${currentLocations.length}`)
+              console.log(`🛰️  ISS position #${location.nonce} | ${location.latitude.toFixed(2)}, ${location.longitude.toFixed(2)} | Trail: ${locationsRef.current.length} positions`)
               
-              // Notify parent components
-              onLocationsUpdateRef.current(currentLocations)
               onNewLocationRef.current(location)
               
             } catch (error) {
-              console.error('❌ Failed to process ISS position:', error)
+              console.error('❌ Failed to process position:', error)
             }
           },
           
@@ -297,42 +109,23 @@ export function useISSLocations({
             console.error('❌ Subscription error:', error.message)
             isSubscribed = false
             
-            // Fetch the last 100 positions before reconnecting
-            console.log('📥 Fetching last 100 positions before reconnecting...')
-            fetchInitialLocations()
-              .then(locations => {
-                if (locations.length > 0) {
-                  console.log(`📥 Fetched ${locations.length} positions`)
-                  // Always update with the latest data
-                  currentLocations = locations
-                  onLocationsUpdateRef.current(locations)
-                }
-              })
-              .catch(err => {
-                console.error('⚠️  Failed to fetch positions:', err)
-              })
-              .finally(() => {
-                // Auto-reconnect after 3 seconds
-                console.log('🔄 Reconnecting in 3 seconds...')
-                setTimeout(() => {
-                  if (!isSubscribed) {
-                    setupSubscription()
-                  }
-                }, 3000)
-              })
+            // Auto-reconnect after 3 seconds
+            setTimeout(() => {
+              if (!isSubscribed) {
+                setupSubscription()
+              }
+            }, 3000)
           }
         })
         
         subscription = sub
         isSubscribed = true
-        console.log('✅ Subscribed to ISSPositionUpdated events')
-        console.log('   Waiting for ISS position updates...')
+        console.log('✅ Subscribed! Waiting for ISS updates...')
         
       } catch (error) {
         console.error('❌ Failed to subscribe:', error)
         
         // Retry after 5 seconds
-        console.log('🔄 Retrying subscription in 5 seconds...')
         setTimeout(() => {
           if (!isSubscribed) {
             setupSubscription()
@@ -341,81 +134,14 @@ export function useISSLocations({
       }
     }
 
-    // Initialize: Fetch history FIRST, then subscribe (non-blocking with setTimeout)
-    console.log('🚀 Initializing ISS location tracking...')
-    
-    // Defer to avoid blocking render
-    setTimeout(() => {
-      console.log('⏰ Timeout elapsed, starting initial fetch...')
-      fetchInitialLocations()
-        .then(locations => {
-          currentLocations = locations
-          console.log(`📋 Initialized with ${locations.length} historical positions`)
-          
-          if (locations.length > 0) {
-            console.log(`🔔 Calling parent onLocationsUpdate with ${locations.length} locations`)
-          } else {
-            console.warn('⚠️  No historical locations to pass to parent')
-          }
-          
-          // Update parent with initial data
-          onLocationsUpdateRef.current(locations)
-          console.log('✅ Parent updated with initial data')
-          
-          console.log('🔌 Now setting up WebSocket subscription for real-time updates...')
-          // Start real-time subscription
-          setupSubscription()
-        })
-        .catch(error => {
-          console.error('❌ Failed initial fetch:', error)
-          // Update parent with empty array so UI can render
-          onLocationsUpdateRef.current([])
-          // Try subscription anyway (might work even without historical data)
-          setupSubscription()
-        })
-    }, 100) // Small delay to ensure render completes first
-    
-    // Handle tab visibility changes (wake from sleep/hibernation)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('👁️  Tab became visible, re-fetching last 100 positions...')
-        
-        // Always fetch the last 100 positions to ensure we have the latest data
-        fetchInitialLocations()
-          .then(locations => {
-            if (locations.length > 0) {
-              console.log(`📥 Fetched ${locations.length} positions`)
-              // Always update, even if count is the same (might be different positions)
-              currentLocations = locations
-              onLocationsUpdateRef.current(locations)
-            }
-            
-            // Re-establish WebSocket if needed
-            if (!isSubscribed) {
-              console.log('🔄 Re-establishing WebSocket connection...')
-              setupSubscription()
-            }
-          })
-          .catch(error => {
-            console.error('❌ Failed to fetch positions:', error)
-          })
-      }
-    }
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+    // Start subscription
+    setupSubscription()
 
-    // Cleanup on unmount
+    // Cleanup
     return () => {
-      console.log('🧹 Cleaning up ISS location subscription...')
-      
-      // Remove visibility change listener
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      
-      // Unsubscribe from WebSocket
       if (subscription) {
         try {
           subscription.unsubscribe()
-          isSubscribed = false
           console.log('✅ Subscription cleaned up')
         } catch (error) {
           console.error('⚠️  Error during cleanup:', error)
@@ -424,4 +150,3 @@ export function useISSLocations({
     }
   }, [])
 }
-
