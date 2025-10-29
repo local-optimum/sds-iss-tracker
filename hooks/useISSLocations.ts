@@ -84,11 +84,15 @@ export function useISSLocations({
         }
         
         console.log(`📊 Found ${total} positions on-chain`)
+        console.log(`⏳ Fetching all ${total} positions...`)
         
         // Fetch all positions (could optimize with range queries for large datasets)
         const locations: ISSLocation[] = []
         
         for (let i = 0n; i < total; i++) {
+          if (i % 10n === 0n) {
+            console.log(`   Progress: ${i}/${total}`)
+          }
           const data = await sdk.streams.getAtIndex(
             ISS_SCHEMA_ID,
             PUBLISHER_ADDRESS,
@@ -129,6 +133,13 @@ export function useISSLocations({
         locations.sort((a, b) => a.timestamp - b.timestamp)
         
         console.log(`✅ Loaded ${locations.length} historical positions`)
+        if (locations.length > 0) {
+          const oldest = new Date(locations[0].timestamp).toISOString()
+          const newest = new Date(locations[locations.length - 1].timestamp).toISOString()
+          console.log(`   Oldest: ${oldest}`)
+          console.log(`   Newest: ${newest}`)
+          console.log(`   Nonce range: ${locations[0].nonce} - ${locations[locations.length - 1].nonce}`)
+        }
         return locations
       } catch (error) {
         console.error('❌ Failed to fetch initial locations:', error)

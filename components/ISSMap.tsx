@@ -12,7 +12,7 @@
  */
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -35,45 +35,28 @@ interface ISSMapProps {
   showTrail?: boolean
 }
 
-/**
- * Component to center on ISS position ONCE on initial load
- * After that, user controls the camera
- */
-function CenterOnISSOnce({ location }: { location: ISSLocation | null }) {
-  const map = useMap()
-  const hasCentered = useRef(false)
-  
-  useEffect(() => {
-    if (location && !hasCentered.current) {
-      map.setView([location.latitude, location.longitude], 3, {
-        animate: true,
-        duration: 1
-      })
-      hasCentered.current = true
-      console.log('📍 Centered map on ISS initial position')
-    }
-  }, [location, map])
-  
-  return null
-}
 
 /**
  * Main map component showing ISS position and orbit trail
  */
 export function ISSMap({ locations, currentTime, showTrail = true }: ISSMapProps) {
-  // Get current ISS position (latest)
+  // Get current ISS position based on timeline (closest to currentTime)
   const currentLocation = locations.length > 0
-    ? locations[locations.length - 1]
+    ? locations.reduce((prev, curr) => {
+        return Math.abs(curr.timestamp - currentTime) < Math.abs(prev.timestamp - currentTime)
+          ? curr
+          : prev
+      })
     : null
 
-  // Get positions for trail visualization
-  // Filter to show trail for specified time window
-  const trailLocations = showTrail
-    ? locations.filter(l => currentTime - l.timestamp <= 24 * 60 * 60 * 1000)
-    : []
+  // All locations passed in are already filtered by parent
+  // Just use them for the trail
+  const trailLocations = showTrail ? locations : []
 
   // Convert to Leaflet LatLng format
   const trailPath = trailLocations.map(l => [l.latitude, l.longitude] as [number, number])
+  
+  console.log(`🗺️  ISSMap render: ${locations.length} positions, trail: ${trailPath.length} points, current:`, currentLocation ? `${currentLocation.latitude.toFixed(2)}, ${currentLocation.longitude.toFixed(2)}` : 'none')
 
   return (
     <MapContainer
@@ -83,6 +66,9 @@ export function ISSMap({ locations, currentTime, showTrail = true }: ISSMapProps
       zoomControl={true}
       scrollWheelZoom={true}
       className="rounded-lg"
+      maxBounds={[[-90, -180], [90, 180]]}
+      maxBoundsViscosity={1.0}
+      minZoom={2}
     >
       {/* Dark space-themed map tiles */}
       <TileLayer
@@ -160,8 +146,6 @@ export function ISSMap({ locations, currentTime, showTrail = true }: ISSMapProps
               opacity: 0.5
             }}
           />
-          
-          <CenterOnISSOnce location={currentLocation} />
         </>
       )}
 

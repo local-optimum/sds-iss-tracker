@@ -12,7 +12,7 @@
  */
 'use client'
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { Timeline } from '@/components/Timeline'
 import { ISSInfo } from '@/components/ISSInfo'
@@ -33,12 +33,6 @@ export default function Home() {
   const [locations, setLocations] = useState<ISSLocation[]>([])
   const [currentTime, setCurrentTime] = useState(() => Date.now())
   const [timeWindow, setTimeWindow] = useState(24 * 60 * 60 * 1000) // 24 hours
-  const [isMounted, setIsMounted] = useState(false)
-
-  // Handle SSR for Leaflet
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
 
   // Callbacks for ISS location hook
   const handleNewLocation = useCallback((location: ISSLocation) => {
@@ -72,7 +66,9 @@ export default function Home() {
 
   // Filter locations for current time window
   const filteredLocations = useMemo(() => {
-    return locations.filter(l => currentTime - l.timestamp <= timeWindow)
+    const filtered = locations.filter(l => currentTime - l.timestamp <= timeWindow)
+    console.log(`🗺️  Map: ${filtered.length} of ${locations.length} positions visible (window: ${timeWindow / 1000 / 60 / 60}h)`)
+    return filtered
   }, [locations, currentTime, timeWindow])
 
   return (
@@ -125,17 +121,11 @@ export default function Home() {
           <div className="space-y-4">
             {/* Map */}
             <div className="h-[600px] rounded-lg overflow-hidden border border-gray-700 shadow-2xl">
-              {isMounted ? (
-                <ISSMap
-                  locations={filteredLocations}
-                  currentTime={currentTime}
-                  showTrail={true}
-                />
-              ) : (
-                <div className="w-full h-full bg-gray-900 flex items-center justify-center">
-                  <div className="text-gray-400">Loading map...</div>
-                </div>
-              )}
+              <ISSMap
+                locations={filteredLocations}
+                currentTime={currentTime}
+                showTrail={true}
+              />
             </div>
 
             {/* Timeline */}
