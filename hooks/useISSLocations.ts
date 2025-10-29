@@ -14,7 +14,7 @@
 
 import { useEffect, useRef } from 'react'
 import { encodeFunctionData, decodeFunctionResult } from 'viem'
-import { ISS_SCHEMA_ID, GPS_SCHEMA_ID, ISS_SCHEMA, PUBLISHER_ADDRESS } from '@/lib/constants'
+import { ISS_SCHEMA_ID, PUBLISHER_ADDRESS } from '@/lib/constants'
 import { decodeISSLocation } from '@/lib/iss-encoding'
 import { getClientSDK, getClientFetchSDK } from '@/lib/client-sdk'
 import type { ISSLocation } from '@/types/iss'
@@ -121,24 +121,48 @@ export function useISSLocations({
           }
           
           for (let i = 0; i < data.length; i++) {
-            try {
-              // Use SDK's deserialiseRawData to convert to bytes, then decode
-              const rawBytes = await sdk.streams.deserialiseRawData(
-                data.slice(i, i + 1) as any,
-                GPS_SCHEMA_ID,
-                { schema: ISS_SCHEMA, schemaId: ISS_SCHEMA_ID }
-              )
-              
-              if (rawBytes && Array.isArray(rawBytes) && rawBytes.length > 0 && typeof rawBytes[0] === 'string') {
-                const location = decodeISSLocation(rawBytes[0] as `0x${string}`)
-                locations.push(location)
+            const positionData = data[i]
+            
+            if (positionData && Array.isArray(positionData) && positionData.length > 0) {
+              try {
+                // getBetweenRange returns array of {name, type, value: {value}} objects
+                // Map by field name to get values
+                const fields: Record<string, any> = {}
+                for (const field of positionData) {
+                  if (field && field.name && field.value && typeof field.value.value !== 'undefined') {
+                    fields[field.name] = field.value.value
+                  }
+                }
                 
+                if (i === 0) {
+                  console.log('🔬 Mapped fields:', Object.keys(fields))
+                  console.log('🔬 Sample values:', {
+                    timestamp: fields.timestamp,
+                    latitude: fields.latitude,
+                    nonce: fields.nonce
+                  })
+                }
+                
+                // Create location object with proper field mapping
+                const location: ISSLocation = {
+                  timestamp: Number(fields.timestamp || 0),
+                  latitude: Number(fields.latitude || 0) / 1_000_000,
+                  longitude: Number(fields.longitude || 0) / 1_000_000,
+                  altitude: Number(fields.altitude || 0),
+                  accuracy: Number(fields.accuracy || 0),
+                  entityId: String(fields.entityId || ''),
+                  nonce: BigInt(fields.nonce || 0),
+                  velocity: Number(fields.velocity || 0),
+                  visibility: Number(fields.visibility || 0)
+                }
+                
+                locations.push(location)
                 if (i < 3 || i >= data.length - 3) {
                   console.log(`   Position ${i}: nonce ${location.nonce}, lat ${location.latitude.toFixed(2)}, lon ${location.longitude.toFixed(2)}`)
                 }
+              } catch (error) {
+                console.error(`❌ Failed to decode position ${i}:`, error)
               }
-            } catch (error) {
-              console.error(`❌ Failed to decode position ${i}:`, error)
             }
           }
         } else {
