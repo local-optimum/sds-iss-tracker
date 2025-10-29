@@ -12,9 +12,8 @@
  */
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { Timeline } from '@/components/Timeline'
 import { ISSInfo } from '@/components/ISSInfo'
 import { useISSLocations } from '@/hooks/useISSLocations'
 import type { ISSLocation } from '@/types/iss'
@@ -32,7 +31,15 @@ const ISSMap = dynamic(
 export default function Home() {
   const [locations, setLocations] = useState<ISSLocation[]>([])
   const [currentTime, setCurrentTime] = useState(() => Date.now())
-  const [timeWindow, setTimeWindow] = useState(24 * 60 * 60 * 1000) // 24 hours
+  const timeWindow = 24 * 60 * 60 * 1000 // 24 hours
+
+  // Keep currentTime updated for live tracking
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now())
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Callbacks for ISS location hook
   const handleNewLocation = useCallback((location: ISSLocation) => {
@@ -117,23 +124,12 @@ export default function Home() {
       {/* Main Content */}
       <div className="max-w-[1800px] mx-auto p-4">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr,400px] gap-4">
-          {/* Map + Timeline */}
-          <div className="space-y-4">
-            {/* Map */}
-            <div className="h-[600px] rounded-lg overflow-hidden border border-gray-700 shadow-2xl">
-              <ISSMap
-                locations={filteredLocations}
-                currentTime={currentTime}
-                showTrail={true}
-              />
-            </div>
-
-            {/* Timeline */}
-            <Timeline
+          {/* Map */}
+          <div className="h-[700px] rounded-lg overflow-hidden border border-gray-700 shadow-2xl">
+            <ISSMap
+              locations={filteredLocations}
               currentTime={currentTime}
-              onTimeChange={setCurrentTime}
-              timeWindow={timeWindow}
-              onTimeWindowChange={setTimeWindow}
+              showTrail={true}
             />
           </div>
 
@@ -165,10 +161,10 @@ export default function Home() {
           </div>
           
           <div className="bg-gray-900/50 backdrop-blur-sm p-4 rounded-lg border border-gray-700">
-            <div className="text-3xl mb-2">⏮️</div>
-            <h3 className="font-bold mb-1">Historical Replay</h3>
+            <div className="text-3xl mb-2">🛰️</div>
+            <h3 className="font-bold mb-1">Live Tracking</h3>
             <p className="text-sm text-gray-400">
-              Scrub through 24 hours of ISS orbit history. All data stored on-chain, fully verifiable.
+              Real-time ISS position updates every 5 seconds. 24 hours of orbit trail stored on-chain.
             </p>
           </div>
         </div>
