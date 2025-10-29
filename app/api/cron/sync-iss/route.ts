@@ -74,8 +74,8 @@ export async function GET(request: NextRequest) {
     
     const encodedData = encodeISSLocation(issData, currentNonce)
     
-    // Use timestamp as unique ID for this position
-    const locationId = toHex(issData.timestamp)
+    // Use timestamp as unique ID for this position (padded to bytes32)
+    const locationId = toHex(issData.timestamp, { size: 32 })
 
     console.log(`   Location ID: ${locationId}`)
     console.log(`   Nonce: ${currentNonce}`)
