@@ -22,9 +22,11 @@ export function getClientFetchSDK() {
     throw new Error('getClientFetchSDK can only be called in browser')
   }
 
+  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://dream-rpc.somnia.network'
+
   const publicClient = createPublicClient({
     chain: somniaTestnet,
-    transport: http('https://dream-rpc.somnia.network'),
+    transport: http(rpcUrl),
   })
 
   return new SDK({ public: publicClient })
@@ -42,9 +44,11 @@ export function getClientSDK() {
     throw new Error('getClientSDK can only be called in browser')
   }
 
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://dream-rpc.somnia.network'
+
   const publicClient = createPublicClient({
     chain: somniaTestnet,
-    transport: webSocket('wss://dream-rpc.somnia.network'),
+    transport: webSocket(wsUrl),
   })
 
   return new SDK({ public: publicClient })
