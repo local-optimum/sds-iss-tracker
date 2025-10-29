@@ -40,24 +40,21 @@ interface ISSMapProps {
  * Main map component showing ISS position and orbit trail
  */
 export function ISSMap({ locations, currentLocation, showTrail = true }: ISSMapProps) {
-  // All locations passed in are already filtered by parent (within time window)
-  // Calculate opacity based on age (newer = more opaque)
-  const now = Date.now()
-  const oldestTime = locations.length > 0 ? Math.min(...locations.map(l => l.timestamp)) : now
-  const timeRange = now - oldestTime
+  // All locations passed in (should be last 100 positions)
+  // Calculate opacity based on position in array (older = less opaque)
+  const validLocations = locations.filter(l => l.latitude !== 0 && l.longitude !== 0)
   
-  const trailDots = showTrail ? locations
-    .filter(l => l.latitude !== 0 && l.longitude !== 0) // Filter invalid positions
-    .map(l => ({
-      lat: l.latitude,
-      lon: l.longitude,
-      timestamp: l.timestamp,
-      nonce: l.nonce,
-      // Opacity: 0.2 (oldest) to 0.8 (newest)
-      opacity: timeRange > 0 
-        ? 0.2 + ((l.timestamp - oldestTime) / timeRange) * 0.6
-        : 0.8
-    }))
+  const trailDots = showTrail ? validLocations.map((l, index) => {
+      // Opacity fades from 0.2 (oldest/first) to 1.0 (newest/last)
+      const opacity = 0.2 + (index / (validLocations.length - 1 || 1)) * 0.8
+      return {
+        lat: l.latitude,
+        lon: l.longitude,
+        timestamp: l.timestamp,
+        nonce: l.nonce,
+        opacity
+      }
+    })
     : []
   
   console.log(`🗺️  ISSMap render:`)

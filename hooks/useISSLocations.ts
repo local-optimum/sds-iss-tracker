@@ -278,18 +278,19 @@ export function useISSLocations({
             console.error('❌ Subscription error:', error.message)
             isSubscribed = false
             
-            // Fetch any missed positions before reconnecting
-            console.log('📥 Fetching missed positions before reconnecting...')
+            // Fetch the last 100 positions before reconnecting
+            console.log('📥 Fetching last 100 positions before reconnecting...')
             fetchInitialLocations()
               .then(locations => {
-                if (locations.length > currentLocations.length) {
-                  console.log(`📥 Found ${locations.length - currentLocations.length} new positions during disconnect`)
+                if (locations.length > 0) {
+                  console.log(`📥 Fetched ${locations.length} positions`)
+                  // Always update with the latest data
                   currentLocations = locations
                   onLocationsUpdateRef.current(locations)
                 }
               })
               .catch(err => {
-                console.error('⚠️  Failed to fetch missed positions:', err)
+                console.error('⚠️  Failed to fetch positions:', err)
               })
               .finally(() => {
                 // Auto-reconnect after 3 seconds
@@ -350,13 +351,14 @@ export function useISSLocations({
     // Handle tab visibility changes (wake from sleep/hibernation)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('👁️  Tab became visible, checking for missed ISS positions...')
+        console.log('👁️  Tab became visible, re-fetching last 100 positions...')
         
-        // Fetch any missed positions while tab was hidden
+        // Always fetch the last 100 positions to ensure we have the latest data
         fetchInitialLocations()
           .then(locations => {
-            if (locations.length > currentLocations.length) {
-              console.log(`📥 Found ${locations.length - currentLocations.length} new positions while tab was hidden`)
+            if (locations.length > 0) {
+              console.log(`📥 Fetched ${locations.length} positions`)
+              // Always update, even if count is the same (might be different positions)
               currentLocations = locations
               onLocationsUpdateRef.current(locations)
             }
@@ -368,7 +370,7 @@ export function useISSLocations({
             }
           })
           .catch(error => {
-            console.error('❌ Failed to fetch missed positions:', error)
+            console.error('❌ Failed to fetch positions:', error)
           })
       }
     }
