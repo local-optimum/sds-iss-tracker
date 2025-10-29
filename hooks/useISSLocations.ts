@@ -90,7 +90,9 @@ export function useISSLocations({
         const startIndex = total > 100n ? total - 100n : 0n
         const endIndex = total - 1n
         
-        console.log(`⏳ Fetching last ${fetchCount} positions (${startIndex} to ${endIndex})...`)
+        console.log(`⏳ Requesting range: ${startIndex} to ${endIndex} (${fetchCount} positions)`)
+        console.log(`   Total on-chain: ${total}`)
+        console.log(`   Expected nonce range: ${startIndex} to ${endIndex}`)
         
         // Fetch positions using range query
         const data = await sdk.streams.getBetweenRange(
@@ -99,6 +101,8 @@ export function useISSLocations({
           startIndex,
           endIndex
         )
+        
+        console.log(`📥 getBetweenRange completed, checking response...`)
         
         const locations: ISSLocation[] = []
         
