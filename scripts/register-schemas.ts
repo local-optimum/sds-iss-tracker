@@ -59,8 +59,11 @@ async function main() {
       console.log('✅ Transaction confirmed on blockchain!')
     }
   } catch (error) {
-    const err = error as Error
-    if (err.message.includes('already registered') || err.message.includes('AlreadyExists')) {
+    const err = error as any
+    // Check for SchemaAlreadyRegistered error
+    if (err.message?.includes('SchemaAlreadyRegistered') || 
+        err.message?.includes('already registered') ||
+        err.data?.errorName === 'SchemaAlreadyRegistered') {
       console.log('ℹ️  GPS schema already registered (skipping)')
     } else {
       console.error('❌ Failed to register GPS schema:', err.message)
@@ -100,8 +103,11 @@ async function main() {
       console.log('✅ Transaction confirmed on blockchain!')
     }
   } catch (error) {
-    const err = error as Error
-    if (err.message.includes('already registered') || err.message.includes('AlreadyExists')) {
+    const err = error as any
+    // Check for SchemaAlreadyRegistered error
+    if (err.message?.includes('SchemaAlreadyRegistered') || 
+        err.message?.includes('already registered') ||
+        err.data?.errorName === 'SchemaAlreadyRegistered') {
       console.log('ℹ️  ISS schema already registered (skipping)')
     } else {
       console.error('❌ Failed to register ISS schema:', err.message)
